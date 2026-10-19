@@ -12,7 +12,7 @@ npm run db:setup            # tạo database + bảng + dữ liệu mẫu
 npm run dev                 # http://localhost:4000
 ```
 
-Tài khoản mẫu (admin + khách) lấy từ các biến `SEED_*` trong `.env`. 5 khách demo (`lan.nguyen@`, `khoa.tran@`, `phuc.le@`, `anh.pham@`, `ha.do@example.com`) dùng chung mật khẩu `SEED_DEMO_PASSWORD`.
+`db:setup` tạo sẵn 2 tài khoản mẫu (admin + khách) theo các biến `SEED_*` trong `.env`, cùng 14 món và 4 danh mục. Dữ liệu tạo thêm khi dùng web (khách, đơn hàng, tin nhắn…) chỉ nằm trong PostgreSQL trên máy, **không** có trên GitHub.
 
 | Lệnh               | Tác dụng                                                  |
 | ------------------ | --------------------------------------------------------- |
