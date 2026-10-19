@@ -11,7 +11,7 @@ export function Testimonials() {
   return (
     <section className="py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <SectionHeading eyebrow="Khách hàng nói gì" title="Hơn 15.000 nụ cười mỗi tháng" />
+        <SectionHeading eyebrow="Khách hàng nói gì" title="Cảm nhận từ khách quen" />
         <div className="mt-14 grid gap-6 md:grid-cols-3">
           {REVIEWS.map((r) => (
             <figure key={r.name} className="relative rounded-3xl bg-white p-8 shadow-sm ring-1 ring-coffee-100">

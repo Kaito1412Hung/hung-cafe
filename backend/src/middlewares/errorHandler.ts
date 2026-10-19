@@ -18,6 +18,14 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     return;
   }
 
+  // Lỗi có sẵn mã 4xx từ thư viện (VD: body quá lớn = 413, file tĩnh không có = 404)
+  const status = typeof err?.status === "number" ? err.status : typeof err?.statusCode === "number" ? err.statusCode : 500;
+  if (status >= 400 && status < 500) {
+    const messages: Record<number, string> = { 404: "Không tìm thấy tài nguyên", 413: "Dữ liệu gửi lên quá lớn" };
+    res.status(status).json({ message: messages[status] ?? "Yêu cầu không hợp lệ" });
+    return;
+  }
+
   console.error(err);
   res.status(500).json({ message: "Lỗi máy chủ, vui lòng thử lại sau" });
 };

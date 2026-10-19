@@ -6,19 +6,29 @@ import { Send } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { unsplash } from "@/lib/utils";
+import { contactService } from "@/services/contactService";
 
 export function Newsletter() {
   const toast = useToast();
   const [email, setEmail] = useState("");
+  const [sending, setSending] = useState(false);
 
-  const handleSubmit = (e: FormEvent) => {
+  // Lưu email vào database (admin xem ở Quản lý → Liên hệ → Đăng ký nhận tin)
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!/^\S+@\S+\.\S+$/.test(email)) {
       toast("Email chưa đúng định dạng", "error");
       return;
     }
-    toast("Đăng ký thành công! Mã giảm 20% sẽ được gửi tới email của bạn.");
-    setEmail("");
+    setSending(true);
+    try {
+      toast(await contactService.subscribe(email));
+      setEmail("");
+    } catch (err) {
+      toast((err as Error).message, "error");
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -36,7 +46,7 @@ export function Newsletter() {
               placeholder="Email của bạn"
               className="h-12 flex-1 rounded-full border border-coffee-700 bg-coffee-950/50 px-5 text-cream placeholder:text-coffee-400 focus:border-coffee-400 focus:outline-none"
             />
-            <Button type="submit" variant="secondary" className="h-12 rounded-full px-6">
+            <Button type="submit" variant="secondary" loading={sending} className="h-12 rounded-full px-6">
               Đăng ký <Send className="h-4 w-4" />
             </Button>
           </form>

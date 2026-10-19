@@ -15,6 +15,16 @@ export const orderService = {
     return (await api<{ data: Order }>(`/orders/my/${id}/cancel`, { method: "PATCH" })).data;
   },
 
+  /** Bỏ lại các món của đơn cũ vào giỏ */
+  async reorder(id: number): Promise<{ added: string[]; skipped: string[] }> {
+    return (await api<{ data: { added: string[]; skipped: string[] } }>(`/orders/my/${id}/reorder`, { method: "POST" })).data;
+  },
+
+  /** Chi tiết 1 đơn (admin xem mọi đơn, khách chỉ xem đơn của mình) */
+  async getById(id: number): Promise<Order> {
+    return (await api<{ data: Order }>(`/orders/${id}`)).data;
+  },
+
   /* ----- Admin ----- */
   async getAll(params: { status?: OrderStatus | "all"; search?: string } = {}) {
     const query = new URLSearchParams();

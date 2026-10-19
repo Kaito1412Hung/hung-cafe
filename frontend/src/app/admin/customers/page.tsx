@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Crown, Search, Users } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { Avatar } from "@/components/ui/Avatar";
@@ -17,6 +18,19 @@ const PAGE_SIZE = 10;
 type RoleFilter = Role | "all";
 
 export default function AdminCustomersPage() {
+  // useSearchParams() cần được bọc trong Suspense
+  return (
+    <Suspense>
+      <AdminCustomers />
+    </Suspense>
+  );
+}
+
+function AdminCustomers() {
+  const router = useRouter();
+  const pathname = usePathname();
+  // ?user=12 (từ thông báo "quên mật khẩu") → tự mở chi tiết tài khoản #12
+  const userParam = Number(useSearchParams().get("user")) || null;
   const toast = useToast();
   const { user } = useAuth();
   const [role, setRole] = useState<RoleFilter>("all");
@@ -171,9 +185,12 @@ export default function AdminCustomersPage() {
       </div>
 
       <CustomerDetailModal
-        customerId={selectedId}
+        customerId={selectedId ?? userParam}
         currentUserId={user?.id}
-        onClose={() => setSelectedId(null)}
+        onClose={() => {
+          setSelectedId(null);
+          if (userParam) router.replace(pathname, { scroll: false });
+        }}
         onUpdated={(updated) => updateLocal((list) => list.map((c) => (c.id === updated.id ? { ...c, role: updated.role } : c)))}
         onDeleted={(id) => updateLocal((list) => list.filter((c) => c.id !== id))}
       />

@@ -45,3 +45,17 @@ export const requireRole =
     }
     next();
   };
+
+/**
+ * Không bắt buộc đăng nhập: có cookie hợp lệ thì gắn req.user, không có thì bỏ qua.
+ * Dùng cho chức năng ai cũng dùng được nhưng biết người gửi thì tốt hơn (VD: form liên hệ).
+ */
+export const optionalAuth: RequestHandler = async (req, res, next) => {
+  if (!req.cookies?.[AUTH_COOKIE]) return next();
+  try {
+    await requireAuth(req, res, () => {});
+  } catch {
+    req.user = undefined; // token hỏng / hết hạn → coi như khách vãng lai
+  }
+  next();
+};

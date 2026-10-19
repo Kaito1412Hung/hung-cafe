@@ -1,7 +1,15 @@
 import type { PoolClient } from "pg";
 import { pool } from "../../db/pool";
 
-export type NotificationType = "new_order" | "order_cancelled" | "low_stock" | "new_customer";
+export type NotificationType =
+  | "new_order"
+  | "order_cancelled"
+  | "low_stock"
+  | "new_customer"
+  | "password_reset"
+  | "contact_message"
+  // Gửi cho KHÁCH khi đơn của họ đổi trạng thái
+  | "order_status";
 
 export interface Notification {
   id: number;
@@ -36,6 +44,17 @@ export async function notifyAdmins(input: NotifyInput, client: PoolClient | type
      SELECT id, $1, $2, $3, $4 FROM users WHERE role = 'admin'`,
     [input.type, input.title, input.message ?? "", input.link ?? ""],
   );
+}
+
+/** Gửi thông báo cho 1 người cụ thể (VD: khách có đơn vừa đổi trạng thái) */
+export async function notifyUser(userId: number, input: NotifyInput, client: PoolClient | typeof pool = pool) {
+  await client.query("INSERT INTO notifications (user_id, type, title, message, link) VALUES ($1, $2, $3, $4, $5)", [
+    userId,
+    input.type,
+    input.title,
+    input.message ?? "",
+    input.link ?? "",
+  ]);
 }
 
 const COLUMNS = `id, type, title, message, link, is_read AS "isRead", created_at AS "createdAt"`;

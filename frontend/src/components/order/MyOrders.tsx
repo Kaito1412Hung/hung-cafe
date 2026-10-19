@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CircleCheckBig, Loader2, MapPin, Phone } from "lucide-react";
+import { CircleCheckBig, Loader2, MapPin, Phone, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { EmptyCart } from "@/components/cart/EmptyCart";
 import { useAuth } from "@/context/AuthContext";
+import { useCart } from "@/context/CartContext";
 import { formatDateTime, formatOrderCode } from "@/lib/orders";
 import { cn } from "@/lib/utils";
 import { orderService } from "@/services/orderService";
@@ -21,9 +22,45 @@ export function MyOrders() {
   const toast = useToast();
   const newOrderId = Number(useSearchParams().get("new")) || null;
 
+  const { reloadCart, openCart } = useCart();
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [cancelling, setCancelling] = useState<Order | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [reordering, setReordering] = useState<number | null>(null);
+  // Đơn được nhắc tới trong link thông báo (/orders#don-12) → làm nổi bật
+  const [focusId, setFocusId] = useState<number | null>(null);
+
+  // Cuộn tới đơn trong link (#don-12) khi danh sách đã tải xong / khi bấm thông báo khác
+  useEffect(() => {
+    if (!orders) return;
+    const focusFromHash = () => {
+      const id = Number(window.location.hash.match(/^#don-(\d+)$/)?.[1]);
+      if (!id) return;
+      setFocusId(id);
+      requestAnimationFrame(() => document.getElementById(`don-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
+    };
+    const t = setTimeout(focusFromHash, 0);
+    window.addEventListener("hashchange", focusFromHash);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("hashchange", focusFromHash);
+    };
+  }, [orders]);
+
+  const handleReorder = async (order: Order) => {
+    setReordering(order.id);
+    try {
+      const { added, skipped } = await orderService.reorder(order.id);
+      await reloadCart();
+      openCart();
+      toast(`Đã thêm ${added.length} món của đơn ${formatOrderCode(order.id)} vào giỏ`);
+      if (skipped.length) toast(`Tạm hết, chưa thêm được: ${skipped.join(", ")}`, "info");
+    } catch (err) {
+      toast((err as Error).message, "error");
+    } finally {
+      setReordering(null);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -75,9 +112,10 @@ export function MyOrders() {
         {orders.map((order) => (
           <article
             key={order.id}
+            id={`don-${order.id}`}
             className={cn(
-              "rounded-3xl bg-white p-5 shadow-sm ring-1 ring-coffee-100 sm:p-6",
-              order.id === newOrderId && "ring-2 ring-emerald-400",
+              "scroll-mt-24 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-coffee-100 transition sm:p-6",
+              (order.id === newOrderId || order.id === focusId) && "ring-2 ring-emerald-400",
             )}
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -106,11 +144,17 @@ export function MyOrders() {
               </div>
             </div>
 
-            {order.status === "pending" && (
-              <div className="mt-5 flex justify-end border-t border-coffee-100 pt-4">
-                <Button variant="outline" size="sm" onClick={() => setCancelling(order)}>
-                  Huỷ đơn
-                </Button>
+            {(order.status === "pending" || order.status === "completed" || order.status === "cancelled") && (
+              <div className="mt-5 flex justify-end gap-2 border-t border-coffee-100 pt-4">
+                {order.status === "pending" ? (
+                  <Button variant="outline" size="sm" onClick={() => setCancelling(order)}>
+                    Huỷ đơn
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={() => handleReorder(order)} loading={reordering === order.id} disabled={reordering !== null}>
+                    {reordering !== order.id && <RotateCcw className="h-4 w-4" />} Mua lại
+                  </Button>
+                )}
               </div>
             )}
           </article>

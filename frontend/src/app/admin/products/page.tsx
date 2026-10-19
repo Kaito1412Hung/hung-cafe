@@ -11,7 +11,7 @@ import { Pagination } from "@/components/admin/Pagination";
 import { ProductFormModal } from "@/components/admin/ProductFormModal";
 import { DeleteProductDialog } from "@/components/admin/DeleteProductDialog";
 import { useProducts } from "@/hooks/useProducts";
-import { CATEGORIES } from "@/lib/utils";
+import { useCategories } from "@/context/CategoriesContext";
 import type { Category, Product, ProductInput } from "@/types/product";
 
 const PAGE_SIZE = 6;
@@ -24,6 +24,7 @@ export default function AdminProductsPage() {
 
   // Bộ lọc
   const [query, setQuery] = useState("");
+  const { categories } = useCategories();
   const [category, setCategory] = useState<Category | "all">("all");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [sort, setSort] = useState<SortKey>("newest");
@@ -152,9 +153,9 @@ export default function AdminProductsPage() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:flex">
             <Select value={category} onChange={(e) => withReset(setCategory)(e.target.value as Category | "all")} className="lg:w-44" aria-label="Lọc danh mục">
               <option value="all">Tất cả danh mục</option>
-              {CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
+              {categories.map((c) => (
+                <option key={c.slug} value={c.slug}>
+                  {c.name}
                 </option>
               ))}
             </Select>

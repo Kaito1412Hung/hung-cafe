@@ -3,13 +3,15 @@
 import { Trash2 } from "lucide-react";
 import { ProductImage } from "@/components/ui/ProductImage";
 import { useCartActions } from "@/hooks/useCartActions";
-import { cn, formatPrice, getCategoryLabel } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
+import { useCategories } from "@/context/CategoriesContext";
 import type { CartItem } from "@/types/cart";
 import { QuantityStepper } from "./QuantityStepper";
 
 /** Một dòng món trong giỏ. `compact` dùng cho ngăn kéo, bản thường dùng cho trang /cart */
 export function CartItemRow({ item, compact }: { item: CartItem; compact?: boolean }) {
   const { pendingIds, changeQuantity, remove } = useCartActions();
+  const { getLabel } = useCategories();
   const pending = pendingIds.includes(item.productId);
   const soldOut = !item.isAvailable || item.stock === 0;
 
@@ -24,7 +26,7 @@ export function CartItemRow({ item, compact }: { item: CartItem; compact?: boole
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            {!compact && <p className="text-xs font-medium uppercase tracking-wider text-coffee-500">{getCategoryLabel(item.category)}</p>}
+            {!compact && <p className="text-xs font-medium uppercase tracking-wider text-coffee-500">{getLabel(item.category)}</p>}
             <h3 className={cn("truncate font-semibold text-coffee-950", !compact && "font-display text-lg")}>{item.name}</h3>
             <p className="text-sm text-coffee-600">{formatPrice(item.price)}</p>
           </div>

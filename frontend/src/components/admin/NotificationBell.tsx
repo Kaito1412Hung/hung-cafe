@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, BellOff, CheckCheck, PackageX, Receipt, UserPlus, XCircle } from "lucide-react";
+import { Bell, BellOff, CheckCheck, KeyRound, MessageCircle, PackageCheck, PackageX, Receipt, UserPlus, XCircle } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
 import { notificationService } from "@/services/notificationService";
@@ -16,6 +16,9 @@ const TYPE_STYLE: Record<NotificationType, { icon: typeof Bell; color: string }>
   order_cancelled: { icon: XCircle, color: "bg-red-50 text-red-600" },
   low_stock: { icon: PackageX, color: "bg-amber-50 text-amber-600" },
   new_customer: { icon: UserPlus, color: "bg-violet-50 text-violet-600" },
+  password_reset: { icon: KeyRound, color: "bg-sky-50 text-sky-600" },
+  contact_message: { icon: MessageCircle, color: "bg-pink-50 text-pink-600" },
+  order_status: { icon: PackageCheck, color: "bg-emerald-50 text-emerald-600" },
 };
 
 const rtf = new Intl.RelativeTimeFormat("vi", { numeric: "auto" });
@@ -131,7 +134,7 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-coffee-100 animate-modal-in max-sm:fixed max-sm:inset-x-4 max-sm:top-16 max-sm:mt-0 max-sm:w-auto">
+        <div className="absolute right-0 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-coffee-100 animate-modal-in max-sm:fixed max-sm:inset-x-4 max-sm:top-[4.5rem] max-sm:mt-0 max-sm:w-auto">
           <div className="flex items-center justify-between border-b border-coffee-100 px-4 py-3">
             <p className="font-semibold text-coffee-950">
               Thông báo {unread > 0 && <span className="ml-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600">{unread} mới</span>}
@@ -162,7 +165,7 @@ export function NotificationBell() {
               <div className="flex flex-col items-center px-6 py-12 text-center">
                 <BellOff className="h-9 w-9 text-coffee-300" />
                 <p className="mt-3 text-sm font-medium text-coffee-900">Chưa có thông báo nào</p>
-                <p className="mt-1 text-xs text-coffee-500">Đơn hàng mới, khách mới, món sắp hết sẽ hiện ở đây.</p>
+                <p className="mt-1 text-xs text-coffee-500">Các cập nhật mới sẽ hiện ở đây.</p>
               </div>
             ) : (
               <ul className="divide-y divide-coffee-100">

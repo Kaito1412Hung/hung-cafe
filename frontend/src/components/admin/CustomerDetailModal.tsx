@@ -10,6 +10,7 @@ import { OrderStatusBadge } from "@/components/order/OrderStatusBadge";
 import { formatDateTime, formatOrderCode } from "@/lib/orders";
 import { formatDate, formatPrice } from "@/lib/utils";
 import { adminService } from "@/services/adminService";
+import { ResetPasswordCard } from "./ResetPasswordCard";
 import type { Customer, CustomerDetail } from "@/types/customer";
 
 interface CustomerDetailModalProps {
@@ -140,6 +141,8 @@ export function CustomerDetailModal({ customerId, currentUserId, onClose, onUpda
               </div>
             ))}
           </div>
+
+          {!isSelf && <ResetPasswordCard key={data.id} customerId={data.id} email={data.email} />}
 
           <div>
             <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-coffee-500">Lịch sử đơn hàng</h3>

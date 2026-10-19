@@ -29,9 +29,9 @@ export function useCartActions() {
 
   return {
     ...cart,
-    addToCart: (productId: number, name: string) => {
+    addToCart: (productId: number, name: string, quantity = 1) => {
       if (!user) return requireLogin();
-      return withToast(() => cart.addItem(productId), `Đã thêm "${name}" vào giỏ`);
+      return withToast(() => cart.addItem(productId, quantity), `Đã thêm ${quantity > 1 ? `${quantity} × ` : ""}"${name}" vào giỏ`);
     },
     changeQuantity: (productId: number, quantity: number) => withToast(() => cart.updateQuantity(productId, quantity)),
     remove: (productId: number, name: string) => withToast(() => cart.removeItem(productId), `Đã xoá "${name}" khỏi giỏ`),

@@ -43,6 +43,10 @@ adminRouter.patch("/customers/:id/role", validateBody(roleSchema), async (req, r
   res.json({ data: await customersService.changeRole(req.user!.id, parseId(req), req.body.role) });
 });
 
+adminRouter.post("/customers/:id/reset-password", async (req, res) => {
+  res.json({ data: await customersService.resetPassword(req.user!.id, parseId(req)) });
+});
+
 adminRouter.delete("/customers/:id", async (req, res) => {
   await customersService.remove(req.user!.id, parseId(req));
   res.status(204).end();

@@ -6,6 +6,7 @@ import {
   avatarSchema,
   changePasswordSchema,
   deleteAccountSchema,
+  forgotPasswordSchema,
   loginSchema,
   registerSchema,
   updateProfileSchema,
@@ -17,6 +18,7 @@ authRouter.post("/register", validateBody(registerSchema), controller.register);
 authRouter.post("/login", validateBody(loginSchema), controller.login);
 authRouter.post("/logout", controller.logout);
 authRouter.post("/logout-all", requireAuth, controller.logoutAll);
+authRouter.post("/forgot-password", validateBody(forgotPasswordSchema), controller.forgotPassword);
 
 // Hồ sơ của chính mình
 authRouter.get("/me", requireAuth, controller.me);

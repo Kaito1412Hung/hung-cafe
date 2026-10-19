@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, ShoppingBag, X } from "lucide-react";
 import { Logo } from "./Logo";
+import { SectionLink } from "./SectionLink";
 import { UserMenu } from "./UserMenu";
+import { NotificationBell } from "@/components/admin/NotificationBell";
+import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { cn } from "@/lib/utils";
 
@@ -13,12 +15,13 @@ const NAV_LINKS = [
   { href: "/", label: "Trang chủ" },
   { href: "/menu", label: "Thực đơn" },
   { href: "/#about", label: "Về chúng tôi" },
-  { href: "/#contact", label: "Liên hệ" },
+  { href: "/contact", label: "Liên hệ" },
 ];
 
 export function Navbar() {
   const pathname = usePathname();
   const { cart, openCart } = useCart();
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -44,7 +47,7 @@ export function Navbar() {
             const active = link.href === pathname;
             return (
               <li key={link.href}>
-                <Link
+                <SectionLink
                   href={link.href}
                   className={cn(
                     "rounded-full px-4 py-2 text-sm font-medium transition",
@@ -52,7 +55,7 @@ export function Navbar() {
                   )}
                 >
                   {link.label}
-                </Link>
+                </SectionLink>
               </li>
             );
           })}
@@ -71,6 +74,8 @@ export function Navbar() {
               </span>
             )}
           </button>
+          {/* Chuông thông báo: khách nhận tin đơn hàng đổi trạng thái */}
+          {user && <NotificationBell />}
           <UserMenu />
           <button
             onClick={() => setOpen(!open)}
@@ -88,13 +93,13 @@ export function Navbar() {
           <ul className="space-y-1">
             {NAV_LINKS.map((link) => (
               <li key={link.href}>
-                <Link
+                <SectionLink
                   href={link.href}
                   onClick={() => setOpen(false)}
                   className="block rounded-xl px-4 py-3 font-medium text-coffee-800 hover:bg-coffee-100"
                 >
                   {link.label}
-                </Link>
+                </SectionLink>
               </li>
             ))}
           </ul>

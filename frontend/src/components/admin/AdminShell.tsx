@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ExternalLink, LayoutGrid, Menu, Package, Settings, ShoppingCart, Users, X } from "lucide-react";
+import { ExternalLink, LayoutGrid, Mail, Menu, Package, Settings, ShoppingCart, Tags, Users, X } from "lucide-react";
 import { Logo } from "@/components/layout/Logo";
 import { NotificationBell } from "./NotificationBell";
 import { AdminUserMenu } from "./AdminUserMenu";
@@ -12,9 +12,11 @@ import { cn } from "@/lib/utils";
 // Thứ tự menu giữ như thiết kế ban đầu
 const NAV = [
   { href: "/admin/products", label: "Sản phẩm", icon: Package },
+  { href: "/admin/categories", label: "Danh mục", icon: Tags },
   { href: "/admin/dashboard", label: "Tổng quan", icon: LayoutGrid },
   { href: "/admin/orders", label: "Đơn hàng", icon: ShoppingCart },
   { href: "/admin/customers", label: "Khách hàng", icon: Users },
+  { href: "/admin/contact", label: "Liên hệ", icon: Mail },
   { href: "/admin/settings", label: "Cài đặt", icon: Settings },
 ];
 
@@ -23,13 +25,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#f7f4ef] lg:pl-68">
+    <div className="min-h-screen bg-[#f7f4ef] lg:pl-68 print:bg-white print:pl-0">
       {/* Lớp phủ khi mở sidebar trên mobile */}
       {open && <div className="fixed inset-0 z-40 bg-coffee-950/40 lg:hidden" onClick={() => setOpen(false)} />}
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-68 flex-col bg-coffee-950 px-4 py-6 transition-transform lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 flex w-68 flex-col bg-coffee-950 px-4 py-6 transition-transform lg:translate-x-0 print:hidden",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
@@ -71,7 +73,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-h-screen flex-col">
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-coffee-100 bg-white/80 px-4 backdrop-blur-lg lg:px-8">
+        <header className="sticky top-0 z-30 flex h-16 print:hidden items-center gap-4 border-b border-coffee-100 bg-white/80 px-4 backdrop-blur-lg lg:px-8">
           <button onClick={() => setOpen(true)} className="text-coffee-800 lg:hidden" aria-label="Mở menu">
             <Menu className="h-6 w-6" />
           </button>
@@ -82,7 +84,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <NotificationBell />
           <AdminUserMenu />
         </header>
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 print:p-0">{children}</main>
       </div>
     </div>
   );

@@ -1,8 +1,8 @@
 import type { PoolClient } from "pg";
 import { pool } from "../../db/pool";
-import { calcShippingFee, getShopSettings } from "../settings/settings.service";
+import { calcShippingFee, getOpenStatus, getShopSettings } from "../settings/settings.service";
 import { AppError } from "../../utils/AppError";
-import { LOW_STOCK_THRESHOLD, cleanup as cleanupNotifications, notifyAdmins } from "../notifications/notifications.service";
+import { LOW_STOCK_THRESHOLD, cleanup as cleanupNotifications, notifyAdmins, notifyUser } from "../notifications/notifications.service";
 import { STATUS_LABELS, STATUS_TRANSITIONS, type CheckoutInput, type Order, type OrderStatus } from "./orders.schema";
 
 // Lấy đơn kèm danh sách món (json_agg gom các dòng order_items thành mảng JSON)
@@ -46,6 +46,11 @@ const code = (id: number) => `#${String(id).padStart(5, "0")}`;
 /* ================= Khách hàng ================= */
 
 export async function checkout(userId: number, input: CheckoutInput): Promise<Order> {
+  // Ngoài giờ mở cửa (hoặc admin tạm ngưng nhận đơn) → không cho đặt
+  const settings = await getShopSettings();
+  const openStatus = getOpenStatus(settings);
+  if (!openStatus.isOpen) throw new AppError(400, `${openStatus.message}. Bạn vui lòng đặt lại sau nhé!`);
+
   const orderId = await withTransaction(async (client) => {
     // FOR UPDATE: khoá các dòng sản phẩm để 2 người đặt cùng lúc không trừ kho sai
     const { rows: items } = await client.query<{
@@ -78,7 +83,7 @@ export async function checkout(userId: number, input: CheckoutInput): Promise<Or
 
     // Tiền luôn tính lại ở server — không tin số tiền client gửi lên
     const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-    const shippingFee = calcShippingFee(subtotal, await getShopSettings());
+    const shippingFee = calcShippingFee(subtotal, settings);
 
     const { rows } = await client.query<{ id: number }>(
       `INSERT INTO orders (user_id, customer_name, phone, address, note, subtotal, shipping_fee, total)
@@ -135,6 +140,38 @@ export async function findByUser(userId: number): Promise<Order[]> {
   return rows;
 }
 
+/**
+ * "Mua lại": bỏ các món của đơn cũ vào giỏ. Món đã xoá / ngừng bán / hết hàng thì bỏ qua,
+ * số lượng không vượt quá tồn kho (và tối đa 99).
+ */
+export async function reorder(userId: number, id: number) {
+  const order = await findById(id);
+  if (order.userId !== userId) throw new AppError(404, "Không tìm thấy đơn hàng");
+
+  const added: string[] = [];
+  const skipped: string[] = [];
+  for (const item of order.items) {
+    const { rows } = item.productId
+      ? await pool.query<{ stock: number; isAvailable: boolean }>(`SELECT stock, is_available AS "isAvailable" FROM products WHERE id = $1`, [item.productId])
+      : { rows: [] };
+    const product = rows[0];
+    if (!product || !product.isAvailable || product.stock === 0) {
+      skipped.push(item.name);
+      continue;
+    }
+    // Cộng dồn với giỏ hiện tại nhưng không vượt tồn kho / 99
+    await pool.query(
+      `INSERT INTO cart_items (user_id, product_id, quantity) VALUES ($1, $2, LEAST($3::int, $4::int, 99))
+       ON CONFLICT (user_id, product_id)
+       DO UPDATE SET quantity = LEAST(cart_items.quantity + EXCLUDED.quantity, $4::int, 99), updated_at = NOW()`,
+      [userId, item.productId, item.quantity, product.stock],
+    );
+    added.push(item.name);
+  }
+  if (added.length === 0) throw new AppError(400, "Các món trong đơn này hiện đã hết hoặc ngừng bán");
+  return { added, skipped };
+}
+
 /* ================= Dùng chung ================= */
 
 export async function findById(id: number): Promise<Order> {
@@ -144,9 +181,24 @@ export async function findById(id: number): Promise<Order> {
 }
 
 /** Đổi trạng thái, kiểm tra theo STATUS_TRANSITIONS. Huỷ đơn → hoàn lại tồn kho. */
-export async function changeStatus(id: number, next: OrderStatus): Promise<Order> {
+/** Nội dung báo cho khách khi admin đổi trạng thái đơn */
+const CUSTOMER_MESSAGES: Partial<Record<OrderStatus, { title: string; message: string }>> = {
+  confirmed: { title: "đã được xác nhận", message: "Quán đang pha chế đồ uống cho bạn ☕" },
+  shipping: { title: "đang được giao", message: "Shipper đang trên đường tới, bạn để ý điện thoại nhé 🛵" },
+  completed: { title: "đã giao thành công", message: "Cảm ơn bạn đã ủng hộ Hưng Café! Hẹn gặp lại 💛" },
+  cancelled: { title: "đã bị huỷ", message: "Quán đã huỷ đơn này. Liên hệ quán nếu bạn cần hỗ trợ." },
+};
+
+/**
+ * Đổi trạng thái, kiểm tra theo STATUS_TRANSITIONS. Huỷ đơn → hoàn lại tồn kho.
+ * `notifyCustomer`: admin đổi → báo cho khách; khách tự huỷ thì không cần báo lại chính họ.
+ */
+export async function changeStatus(id: number, next: OrderStatus, notifyCustomer = true): Promise<Order> {
   await withTransaction(async (client) => {
-    const { rows } = await client.query<{ status: OrderStatus }>("SELECT status FROM orders WHERE id = $1 FOR UPDATE", [id]);
+    const { rows } = await client.query<{ status: OrderStatus; userId: number | null }>(
+      `SELECT status, user_id AS "userId" FROM orders WHERE id = $1 FOR UPDATE`,
+      [id],
+    );
     if (!rows[0]) throw new AppError(404, "Không tìm thấy đơn hàng");
 
     const current = rows[0].status;
@@ -164,6 +216,15 @@ export async function changeStatus(id: number, next: OrderStatus): Promise<Order
         [id],
       );
     }
+
+    const content = CUSTOMER_MESSAGES[next];
+    if (notifyCustomer && content && rows[0].userId) {
+      await notifyUser(
+        rows[0].userId,
+        { type: "order_status", title: `Đơn ${code(id)} ${content.title}`, message: content.message, link: `/orders#don-${id}` },
+        client,
+      );
+    }
   });
   return findById(id);
 }
@@ -173,7 +234,7 @@ export async function cancelByCustomer(userId: number, id: number): Promise<Orde
   const order = await findById(id);
   if (order.userId !== userId) throw new AppError(404, "Không tìm thấy đơn hàng");
   if (order.status !== "pending") throw new AppError(400, "Đơn đã được xác nhận, vui lòng liên hệ quán để huỷ");
-  const cancelled = await changeStatus(id, "cancelled");
+  const cancelled = await changeStatus(id, "cancelled", false);
   await notifyAdmins({
     type: "order_cancelled",
     title: `Khách đã huỷ đơn ${code(id)}`,

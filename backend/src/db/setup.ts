@@ -3,6 +3,7 @@ import { env } from "../config/env";
 import { pool } from "./pool";
 import { SCHEMA_SQL } from "./schema";
 import { seed } from "./seed";
+import { backfillSlugs } from "../modules/products/products.service";
 
 /**
  * npm run db:setup
@@ -42,9 +43,11 @@ async function main() {
   }
 
   await pool.query(SCHEMA_SQL);
-  console.log("✅ Đã tạo bảng users, products, cart_items, orders, order_items, settings, notifications");
+  console.log("✅ Đã tạo bảng users, products, cart_items, orders, order_items, settings, notifications, categories, contact_messages, newsletter_subscribers");
 
   await seed();
+  const filled = await backfillSlugs();
+  if (filled) console.log(`✅ Đã tạo đường dẫn (slug) cho ${filled} món`);
   await pool.end();
   console.log("🎉 Hoàn tất!");
 }

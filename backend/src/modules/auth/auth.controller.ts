@@ -58,3 +58,8 @@ export async function deleteAccount(req: Request, res: Response) {
   res.clearCookie(AUTH_COOKIE, clearCookieOptions);
   res.json({ message: "Tài khoản đã được xoá" });
 }
+
+export async function forgotPassword(req: Request, res: Response) {
+  await authService.requestPasswordReset(req.body.email);
+  res.json({ message: "Nếu email đã đăng ký, quán sẽ liên hệ bạn để hỗ trợ đặt lại mật khẩu." });
+}

@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { Search, SearchX } from "lucide-react";
 import { Select } from "@/components/ui/FormField";
 import { useProducts } from "@/hooks/useProducts";
-import { CATEGORIES, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useCategories } from "@/context/CategoriesContext";
 import type { Category } from "@/types/product";
 import { ProductCard, ProductCardSkeleton } from "./ProductCard";
 
@@ -12,6 +13,7 @@ type SortKey = "popular" | "price-asc" | "price-desc" | "name";
 
 export function MenuBrowser() {
   const { products, loading } = useProducts();
+  const { categories } = useCategories();
   const [category, setCategory] = useState<Category | "all">("all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("popular");
@@ -30,7 +32,10 @@ export function MenuBrowser() {
     });
   }, [products, category, query, sort]);
 
-  const tabs = [{ value: "all" as const, label: "Tất cả" }, ...CATEGORIES];
+  const tabs: { value: Category | "all"; label: string }[] = [
+    { value: "all", label: "Tất cả" },
+    ...categories.map((c) => ({ value: c.slug, label: c.name })),
+  ];
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">

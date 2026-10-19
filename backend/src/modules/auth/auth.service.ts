@@ -140,3 +140,28 @@ export async function deleteOwnAccount(id: number, role: Role, password: string)
   if (!valid) throw new AppError(400, "Mật khẩu không đúng", { password: "Mật khẩu không đúng" });
   await pool.query("DELETE FROM users WHERE id = $1", [id]);
 }
+
+/**
+ * Khách báo quên mật khẩu → gửi thông báo cho admin (bản cơ bản, chưa có email).
+ * Luôn "thành công" dù email có tồn tại hay không → không lộ email nào đã đăng ký.
+ */
+export async function requestPasswordReset(email: string) {
+  const { rows } = await pool.query<{ id: number; name: string }>("SELECT id, name FROM users WHERE email = $1", [email]);
+  const user = rows[0];
+  if (!user) return;
+
+  // Chống spam: mỗi tài khoản chỉ gửi 1 yêu cầu trong 10 phút
+  const link = `/admin/customers?user=${user.id}`;
+  const { rowCount } = await pool.query(
+    "SELECT 1 FROM notifications WHERE type = 'password_reset' AND link = $1 AND created_at > NOW() - INTERVAL '10 minutes' LIMIT 1",
+    [link],
+  );
+  if (rowCount) return;
+
+  await notifyAdmins({
+    type: "password_reset",
+    title: "Yêu cầu đặt lại mật khẩu",
+    message: `${user.name} (${email}) quên mật khẩu — hãy liên hệ khách để xác minh rồi đặt lại.`,
+    link,
+  });
+}

@@ -21,17 +21,28 @@ function useDraft<K extends keyof ProfileInput>(user: User, keys: K[]) {
   const original = Object.fromEntries(keys.map((k) => [k, (user[k as keyof User] ?? "") as string])) as Record<K, string>;
   const [draft, setDraft] = useState<Partial<Record<K, string>>>({});
   const values = { ...original, ...draft } as Record<K, string>;
-  const dirty = keys.some((k) => values[k] !== original[k]);
-  return { values, dirty, set: (k: K, v: string) => setDraft((d) => ({ ...d, [k]: v })), reset: () => setDraft({}) };
+  // Chỉ những trường người dùng thật sự sửa → gửi lên server đúng những trường đó
+  const changes = Object.fromEntries(keys.filter((k) => values[k] !== original[k]).map((k) => [k, values[k]])) as Partial<Record<K, string>>;
+  const dirty = Object.keys(changes).length > 0;
+  return { values, changes, dirty, set: (k: K, v: string) => setDraft((d) => ({ ...d, [k]: v })), reset: () => setDraft({}) };
 }
 
 /* ================= Hồ sơ cá nhân ================= */
 export function PersonalInfoForm() {
   const { user, updateUser } = useAuth();
   const toast = useToast();
-  const { values, dirty, set, reset } = useDraft(user!, ["name", "nickname", "phone", "birthday", "gender"]);
+  const { values, changes, dirty: fieldsDirty, set, reset: resetFields } = useDraft(user!, ["name", "nickname", "phone", "birthday", "gender"]);
+  // Ảnh mới chọn nhưng chưa lưu: null = không đổi, "" = xoá ảnh, "data:..." = ảnh mới
+  const [avatarDraft, setAvatarDraft] = useState<string | null>(null);
   const [errors, setErrors] = useState<Errors>({});
   const [saving, setSaving] = useState(false);
+
+  const dirty = fieldsDirty || avatarDraft !== null;
+  const reset = () => {
+    resetFields();
+    setAvatarDraft(null);
+    setErrors({});
+  };
 
   const change = (k: Parameters<typeof set>[0], v: string) => {
     set(k, v);
@@ -40,13 +51,14 @@ export function PersonalInfoForm() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    // Chỉ Họ và tên là bắt buộc; các ô khác để trống vẫn lưu được
     if (values.name.trim().length < 2) return setErrors({ name: "Họ tên cần ít nhất 2 ký tự" });
     setSaving(true);
     try {
-      updateUser(await profileService.update({ ...values, gender: values.gender as Gender }));
+      if (avatarDraft !== null) updateUser(await profileService.updateAvatar(avatarDraft));
+      if (fieldsDirty) updateUser(await profileService.update({ ...changes, gender: changes.gender as Gender | undefined }));
       reset();
-      setErrors({});
-      toast("Đã lưu thông tin cá nhân");
+      toast(fieldsDirty || avatarDraft === null ? "Đã lưu thông tin cá nhân" : avatarDraft ? "Đã cập nhật ảnh đại diện" : "Đã xoá ảnh đại diện");
     } catch (err) {
       if (err instanceof ApiError && err.errors) setErrors(err.errors);
       toast((err as Error).message, "error");
@@ -61,7 +73,7 @@ export function PersonalInfoForm() {
     <form onSubmit={handleSubmit} noValidate>
       <SettingsCard
         title="Thông tin cá nhân"
-        description="Ảnh đại diện và tên hiển thị sẽ xuất hiện trên menu tài khoản."
+        description="Chỉ có Họ và tên là bắt buộc — các mục khác để trống vẫn lưu được. Muốn đổi mỗi ảnh đại diện cũng được."
         footer={
           <>
             <Button type="button" variant="outline" onClick={reset} disabled={!dirty || saving}>
@@ -74,22 +86,29 @@ export function PersonalInfoForm() {
         }
       >
         <div className="space-y-6">
-          <AvatarUploader />
+          <AvatarUploader
+            user={{ name: values.name || user!.name, nickname: values.nickname }}
+            value={avatarDraft ?? user!.avatar}
+            pending={avatarDraft !== null}
+            onChange={setAvatarDraft}
+            onUndo={() => setAvatarDraft(null)}
+            disabled={saving}
+          />
 
           <div className="grid gap-4 @md:grid-cols-2">
-            <Field label="Họ và tên" htmlFor="name" error={errors.name} hint="Tên thật, dùng khi giao hàng">
+            <Field label="Họ và tên" htmlFor="name" error={errors.name} hint="Tên thật, dùng khi giao hàng" required>
               <Input id="name" autoComplete="name" value={values.name} onChange={(e) => change("name", e.target.value)} invalid={!!errors.name} />
             </Field>
-            <Field label="Tên hiển thị (biệt danh)" htmlFor="nickname" error={errors.nickname} hint="Quán sẽ gọi bạn bằng tên này, VD: Hưng">
+            <Field label="Tên hiển thị (biệt danh)" htmlFor="nickname" error={errors.nickname} hint="Không bắt buộc · Quán sẽ gọi bạn bằng tên này">
               <Input id="nickname" value={values.nickname} onChange={(e) => change("nickname", e.target.value)} placeholder={values.name} maxLength={50} invalid={!!errors.nickname} />
             </Field>
             <Field label="Email" htmlFor="email" hint="Email đăng nhập không thể thay đổi">
               <Input id="email" value={user!.email} disabled className="bg-coffee-50 text-coffee-500" />
             </Field>
-            <Field label="Số điện thoại" htmlFor="phone" error={errors.phone}>
+            <Field label="Số điện thoại" htmlFor="phone" error={errors.phone} hint="Không bắt buộc">
               <Input id="phone" type="tel" autoComplete="tel" value={values.phone} onChange={(e) => change("phone", e.target.value)} placeholder="0971 131 945" invalid={!!errors.phone} />
             </Field>
-            <Field label="Ngày sinh" htmlFor="birthday" error={errors.birthday}>
+            <Field label="Ngày sinh" htmlFor="birthday" error={errors.birthday} hint="Không bắt buộc">
               <Input id="birthday" type="date" max={today} value={values.birthday} onChange={(e) => change("birthday", e.target.value)} invalid={!!errors.birthday} />
             </Field>
             <div className="space-y-1.5">
@@ -111,6 +130,7 @@ export function PersonalInfoForm() {
                   </button>
                 ))}
               </div>
+              <p className="text-xs text-coffee-500">Không bắt buộc</p>
             </div>
           </div>
         </div>

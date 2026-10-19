@@ -54,6 +54,10 @@ export const deleteAccountSchema = z.object({
   password: z.string().min(1, "Vui lòng nhập mật khẩu để xác nhận"),
 });
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Email không hợp lệ"),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;

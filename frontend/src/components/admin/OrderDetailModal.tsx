@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, Mail, MapPin, Phone, StickyNote, X } from "lucide-react";
+import { ArrowRight, Mail, MapPin, Phone, Printer, StickyNote, X } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { OrderItemsList } from "@/components/order/OrderItemsList";
@@ -111,7 +111,17 @@ export function OrderDetailModal({ order, onClose, onChangeStatus }: OrderDetail
         </div>
 
         <div>
-          <h3 className="mb-1 text-sm font-semibold uppercase tracking-wider text-coffee-500">Món đã đặt</h3>
+          <div className="mb-1 flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-coffee-500">Món đã đặt</h3>
+            <a
+              href={`/admin/orders/${order.id}/invoice`}
+              target="_blank"
+              rel="noopener"
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-coffee-700 ring-1 ring-coffee-200 transition hover:bg-coffee-50"
+            >
+              <Printer className="h-4 w-4" /> In hoá đơn
+            </a>
+          </div>
           <OrderItemsList order={order} />
         </div>
       </div>

@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
+import { ImageUp, Link2, Loader2, Trash2 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/FormField";
 import { Switch } from "@/components/ui/Switch";
 import { ProductImage } from "@/components/ui/ProductImage";
-import { CATEGORIES } from "@/lib/utils";
+import { useToast } from "@/components/ui/Toast";
+import { useCategories } from "@/context/CategoriesContext";
+import { resizeImage } from "@/lib/image";
+import { productService } from "@/services/productService";
 import type { Category, Product, ProductInput } from "@/types/product";
 
 /** Giá trị trong form để dạng string cho dễ nhập, khi submit mới chuyển sang number */
@@ -22,16 +26,16 @@ interface FormValues {
 }
 type FormErrors = Partial<Record<keyof FormValues, string>>;
 
-const EMPTY: FormValues = {
+const emptyValues = (category: string): FormValues => ({
   name: "",
   description: "",
   price: "",
   stock: "",
-  category: "coffee",
+  category,
   image: "",
   isAvailable: true,
   isBestSeller: false,
-};
+});
 
 function toFormValues(p: Product): FormValues {
   return {
@@ -59,7 +63,10 @@ function validate(v: FormValues): FormErrors {
   if (v.stock === "") errors.stock = "Vui lòng nhập tồn kho";
   else if (!Number.isInteger(stock) || stock < 0) errors.stock = "Tồn kho là số nguyên ≥ 0";
 
-  if (v.image && !/^https?:\/\/.+/.test(v.image)) errors.image = "URL ảnh phải bắt đầu bằng http:// hoặc https://";
+  if (!v.category) errors.category = "Vui lòng chọn danh mục";
+  if (v.image && !/^https?:\/\/.+/.test(v.image) && !v.image.startsWith("/api/uploads/")) {
+    errors.image = "Link ảnh phải bắt đầu bằng http:// hoặc https://";
+  }
   if (v.description.length > 200) errors.description = "Mô tả tối đa 200 ký tự";
   return errors;
 }
@@ -73,7 +80,12 @@ interface ProductFormModalProps {
 
 /** Component cha truyền `key` khác nhau mỗi lần mở → form tự reset state, không cần useEffect */
 export function ProductFormModal({ open, product, onClose, onSubmit }: ProductFormModalProps) {
-  const [values, setValues] = useState<FormValues>(product ? toFormValues(product) : EMPTY);
+  const toast = useToast();
+  const { categories } = useCategories();
+  const [values, setValues] = useState<FormValues>(product ? toFormValues(product) : emptyValues(categories[0]?.slug ?? ""));
+  const [uploading, setUploading] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(Boolean(product?.image.startsWith("http")));
+  const fileRef = useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const isEdit = Boolean(product);
@@ -81,6 +93,22 @@ export function ProductFormModal({ open, product, onClose, onSubmit }: ProductFo
   const set = <K extends keyof FormValues>(key: K, value: FormValues[K]) => {
     setValues((prev) => ({ ...prev, [key]: value }));
     if (errors[key]) setErrors((prev) => ({ ...prev, [key]: undefined }));
+  };
+
+  /** Chọn ảnh từ máy → thu nhỏ ở trình duyệt → upload → lưu đường dẫn vào form */
+  const handleFile = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await productService.uploadImage(await resizeImage(file));
+      set("image", url);
+      toast("Đã tải ảnh lên");
+    } catch (err) {
+      toast((err as Error).message, "error");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -115,17 +143,41 @@ export function ProductFormModal({ open, product, onClose, onSubmit }: ProductFo
           <Button variant="outline" onClick={onClose} disabled={submitting}>
             Huỷ
           </Button>
-          <Button type="submit" form="product-form" loading={submitting}>
+          <Button type="submit" form="product-form" loading={submitting} disabled={uploading}>
             {isEdit ? "Lưu thay đổi" : "Thêm sản phẩm"}
           </Button>
         </>
       }
     >
       <form id="product-form" onSubmit={handleSubmit} noValidate className="grid gap-5 sm:grid-cols-[180px_1fr]">
-        {/* Xem trước ảnh */}
+        {/* Ảnh sản phẩm: bấm vào khung để chọn ảnh từ máy */}
         <div className="space-y-2">
-          <ProductImage src={values.image} alt="Xem trước" className="aspect-square w-full rounded-2xl ring-1 ring-coffee-100" />
-          <p className="text-center text-xs text-coffee-500">Xem trước ảnh</p>
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            className="group relative block w-full cursor-pointer overflow-hidden rounded-2xl ring-1 ring-coffee-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-coffee-200"
+            aria-label="Chọn ảnh từ máy"
+          >
+            <ProductImage src={values.image} alt="Ảnh sản phẩm" className="aspect-square w-full" />
+            <span
+              className={`absolute inset-0 flex flex-col items-center justify-center gap-1 bg-coffee-950/55 text-xs font-medium text-white transition ${uploading ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+            >
+              {uploading ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImageUp className="h-6 w-6" />}
+              {uploading ? "Đang tải lên..." : "Chọn ảnh từ máy"}
+            </span>
+          </button>
+          <div className="flex justify-center gap-1">
+            <Button type="button" size="sm" variant="secondary" onClick={() => fileRef.current?.click()} disabled={uploading} className="h-8 px-2.5 text-xs">
+              <ImageUp className="h-3.5 w-3.5" /> {values.image ? "Đổi ảnh" : "Tải ảnh"}
+            </Button>
+            {values.image && (
+              <Button type="button" size="sm" variant="ghost" onClick={() => set("image", "")} disabled={uploading} className="h-8 px-2 text-xs text-red-600 hover:bg-red-50" aria-label="Xoá ảnh">
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+          <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
         </div>
 
         <div className="space-y-4">
@@ -142,20 +194,27 @@ export function ProductFormModal({ open, product, onClose, onSubmit }: ProductFo
             </Field>
           </div>
 
-          <Field label="Danh mục" htmlFor="category">
+          <Field label="Danh mục" htmlFor="category" error={errors.category} hint="Thêm danh mục mới ở mục Danh mục trên thanh bên">
             <Select id="category" value={values.category} onChange={(e) => set("category", e.target.value as Category)}>
-              {CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
+              {!values.category && <option value="">— Chọn danh mục —</option>}
+              {categories.map((c) => (
+                <option key={c.slug} value={c.slug}>
+                  {c.name}
                 </option>
               ))}
             </Select>
           </Field>
         </div>
 
-        <Field label="URL hình ảnh" htmlFor="image" error={errors.image} hint="Dán link ảnh (VD từ unsplash.com)" className="sm:col-span-2">
-          <Input id="image" value={values.image} onChange={(e) => set("image", e.target.value)} placeholder="https://images.unsplash.com/..." invalid={!!errors.image} />
-        </Field>
+        {showUrlInput ? (
+          <Field label="Hoặc dán link ảnh" htmlFor="image" error={errors.image} hint="VD: link ảnh từ unsplash.com" className="sm:col-span-2">
+            <Input id="image" value={values.image.startsWith("/api/uploads/") ? "" : values.image} onChange={(e) => set("image", e.target.value)} placeholder="https://images.unsplash.com/..." invalid={!!errors.image} />
+          </Field>
+        ) : (
+          <button type="button" onClick={() => setShowUrlInput(true)} className="flex w-fit cursor-pointer items-center gap-1.5 text-xs font-medium text-coffee-600 hover:text-coffee-950 sm:col-span-2">
+            <Link2 className="h-3.5 w-3.5" /> Dùng link ảnh trên mạng thay vì tải lên
+          </button>
+        )}
 
         <Field label="Mô tả" htmlFor="description" error={errors.description} hint={`${values.description.length}/200 ký tự`} className="sm:col-span-2">
           <Textarea id="description" value={values.description} onChange={(e) => set("description", e.target.value)} placeholder="Mô tả ngắn về hương vị, nguyên liệu..." invalid={!!errors.description} />

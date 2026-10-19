@@ -1,7 +1,10 @@
-export type Category = "coffee" | "tea" | "freeze" | "cake";
+/** Slug của danh mục (danh sách lấy từ API /categories) */
+export type Category = string;
 
 export interface Product {
   id: number;
+  /** Đường dẫn trang chi tiết: /menu/{slug} */
+  slug: string;
   name: string;
   description: string;
   price: number;
@@ -14,5 +17,5 @@ export interface Product {
   updatedAt: string;
 }
 
-/** Dữ liệu người dùng nhập khi tạo / sửa sản phẩm (server tự sinh id và thời gian) */
-export type ProductInput = Omit<Product, "id" | "createdAt" | "updatedAt">;
+/** Dữ liệu người dùng nhập khi tạo / sửa sản phẩm (server tự sinh id, slug và thời gian) */
+export type ProductInput = Omit<Product, "id" | "slug" | "createdAt" | "updatedAt">;

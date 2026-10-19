@@ -1,12 +1,14 @@
 import { api } from "@/lib/api";
-import type { ShopSettings } from "@/types/settings";
+import type { OpenStatus, ShopSettings } from "@/types/settings";
+
+type SettingsResponse = { data: ShopSettings; openStatus: OpenStatus };
 
 export const settingsService = {
-  async getShop(): Promise<ShopSettings> {
-    return (await api<{ data: ShopSettings }>("/settings")).data;
+  async getShop(): Promise<SettingsResponse> {
+    return api<SettingsResponse>("/settings");
   },
 
-  async updateShop(input: ShopSettings): Promise<ShopSettings> {
-    return (await api<{ data: ShopSettings }>("/settings", { method: "PUT", body: JSON.stringify(input) })).data;
+  async updateShop(input: ShopSettings): Promise<SettingsResponse> {
+    return api<SettingsResponse>("/settings", { method: "PUT", body: JSON.stringify(input) });
   },
 };

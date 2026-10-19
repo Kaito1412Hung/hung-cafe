@@ -11,6 +11,7 @@ ordersRouter.use(requireAuth);
 ordersRouter.post("/", validateBody(checkoutSchema), controller.checkout);
 ordersRouter.get("/my", controller.listMine);
 ordersRouter.patch("/my/:id/cancel", controller.cancelMine);
+ordersRouter.post("/my/:id/reorder", controller.reorderMine);
 
 // Admin
 ordersRouter.get("/", requireRole("admin"), controller.listAll);

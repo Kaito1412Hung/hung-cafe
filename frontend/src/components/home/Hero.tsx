@@ -1,16 +1,42 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Leaf, Star } from "lucide-react";
+import { ArrowRight, Leaf, PackageCheck } from "lucide-react";
 import { buttonClass } from "@/components/ui/Button";
+import { ProductImage } from "@/components/ui/ProductImage";
+import { SectionLink } from "@/components/layout/SectionLink";
 import { unsplash } from "@/lib/utils";
 
-const STATS = [
-  { value: "20+", label: "Món đồ uống" },
-  { value: "4.9", label: "Điểm đánh giá" },
-  { value: "15k", label: "Khách hàng" },
-];
+interface PublicStats {
+  products: number;
+  customers: number;
+  completedOrders: number;
+  bestSeller: { name: string; slug: string; image: string } | null;
+}
 
-export function Hero() {
+const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:4000";
+
+/** Số liệu THẬT từ database (render ở server). Backend tắt thì trả null → ẩn phần số liệu */
+async function getStats(): Promise<PublicStats | null> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/stats/public`, { cache: "no-store" });
+    return res.ok ? ((await res.json()) as { data: PublicStats }).data : null;
+  } catch {
+    return null;
+  }
+}
+
+const formatCount = (n: number) => new Intl.NumberFormat("vi-VN").format(n);
+
+export async function Hero() {
+  const stats = await getStats();
+  const statItems = stats
+    ? [
+        { value: formatCount(stats.products), label: "Món trên thực đơn" },
+        { value: formatCount(stats.completedOrders), label: "Đơn đã giao" },
+        { value: formatCount(stats.customers), label: "Khách hàng thành viên" },
+      ]
+    : [];
+
   return (
     <section className="relative overflow-hidden">
       {/* Đốm màu trang trí phía sau */}
@@ -43,13 +69,13 @@ export function Hero() {
             <Link href="/menu" className={buttonClass("primary", "lg", "rounded-full")}>
               Khám phá thực đơn <ArrowRight className="h-5 w-5" />
             </Link>
-            <Link href="/#about" className={buttonClass("outline", "lg", "rounded-full")}>
+            <SectionLink href="/#about" className={buttonClass("outline", "lg", "rounded-full")}>
               Câu chuyện của Hưng
-            </Link>
+            </SectionLink>
           </div>
 
           <dl className="mt-12 flex gap-10 border-t border-coffee-200 pt-8">
-            {STATS.map((s) => (
+            {statItems.map((s) => (
               <div key={s.label}>
                 <dt className="font-display text-3xl font-bold text-coffee-950">{s.value}</dt>
                 <dd className="mt-1 text-sm text-coffee-600">{s.label}</dd>
@@ -71,26 +97,27 @@ export function Hero() {
             <div className="absolute inset-0 bg-linear-to-t from-coffee-950/40 to-transparent" />
           </div>
 
-          {/* Thẻ nổi */}
-          <div className="absolute -left-4 top-12 flex animate-float items-center gap-3 rounded-2xl bg-white/95 p-3 pr-5 shadow-xl backdrop-blur sm:-left-10">
-            <div className="relative h-12 w-12 overflow-hidden rounded-xl">
-              <Image src={unsplash("1461023058943-07fcbe16d735", 200)} alt="" fill sizes="48px" className="object-cover" />
-            </div>
-            <div>
-              <p className="text-xs text-coffee-500">Bán chạy nhất</p>
-              <p className="font-semibold text-coffee-950">Cà Phê Sữa Đá</p>
-            </div>
-          </div>
+          {/* Thẻ nổi: món bán chạy nhất THẬT (tính từ các đơn đã đặt) */}
+          {stats?.bestSeller && (
+            <Link
+              href={`/menu/${stats.bestSeller.slug}`}
+              className="absolute -left-4 top-12 flex animate-float items-center gap-3 rounded-2xl bg-white/95 p-3 pr-5 shadow-xl backdrop-blur transition hover:bg-white sm:-left-10"
+            >
+              <ProductImage src={stats.bestSeller.image} alt="" className="h-12 w-12 rounded-xl" />
+              <div>
+                <p className="text-xs text-coffee-500">Bán chạy nhất</p>
+                <p className="font-semibold text-coffee-950">{stats.bestSeller.name}</p>
+              </div>
+            </Link>
+          )}
 
-          <div className="absolute -right-2 bottom-16 animate-float rounded-2xl bg-coffee-900 p-4 text-cream shadow-xl [animation-delay:1.5s] sm:-right-8">
-            <div className="flex gap-0.5">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" />
-              ))}
+          {stats && stats.completedOrders > 0 && (
+            <div className="absolute -right-2 bottom-16 animate-float rounded-2xl bg-coffee-900 p-4 text-cream shadow-xl [animation-delay:1.5s] sm:-right-8">
+              <PackageCheck className="h-5 w-5 text-amber-400" />
+              <p className="mt-2 font-display text-2xl font-bold">{formatCount(stats.completedOrders)}</p>
+              <p className="text-xs text-coffee-300">đơn đã giao tận tay</p>
             </div>
-            <p className="mt-2 text-sm font-medium">&ldquo;Ngon nhất Sài Gòn!&rdquo;</p>
-            <p className="text-xs text-coffee-300">2.400+ đánh giá</p>
-          </div>
+          )}
         </div>
       </div>
     </section>

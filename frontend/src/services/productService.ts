@@ -8,6 +8,15 @@ export const productService = {
     return res.data;
   },
 
+  async getBySlug(slug: string): Promise<Product> {
+    return (await api<{ data: Product }>(`/products/slug/${encodeURIComponent(slug)}`)).data;
+  },
+
+  /** Gửi ảnh (data URL đã thu nhỏ) lên server, nhận lại đường dẫn /api/uploads/... */
+  async uploadImage(dataUrl: string): Promise<string> {
+    return (await api<{ data: { url: string } }>("/uploads/products", { method: "POST", body: JSON.stringify({ image: dataUrl }) })).data.url;
+  },
+
   async create(input: ProductInput): Promise<Product> {
     const res = await api<{ data: Product }>("/products", { method: "POST", body: JSON.stringify(input) });
     return res.data;

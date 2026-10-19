@@ -2,9 +2,10 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { ChevronRight, UserRound } from "lucide-react";
+import { ChevronRight, Clock, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Textarea } from "@/components/ui/FormField";
+import { Switch } from "@/components/ui/Switch";
 import { useToast } from "@/components/ui/Toast";
 import { SettingsCard } from "@/components/admin/SettingsCard";
 import { useShopSettings } from "@/context/ShopSettingsContext";
@@ -18,7 +19,7 @@ type Errors = Record<string, string | undefined>;
 /* ================= Thông tin cửa hàng + giao hàng ================= */
 function ShopSettingsForm() {
   const toast = useToast();
-  const { settings, setSettings } = useShopSettings();
+  const { settings, openStatus, setSettings } = useShopSettings();
   // Form giữ bản nháp riêng; "Huỷ thay đổi" thì quay về giá trị đã lưu
   const [draft, setDraft] = useState<ShopSettings | null>(null);
   const values = draft ?? settings;
@@ -35,7 +36,7 @@ function ShopSettingsForm() {
     setSaving(true);
     try {
       const saved = await settingsService.updateShop(values);
-      setSettings(saved);
+      setSettings(saved.data, saved.openStatus);
       setDraft(null);
       setErrors({});
       toast("Đã lưu thông tin cửa hàng");
@@ -86,15 +87,56 @@ function ShopSettingsForm() {
           <Field label="Địa chỉ" htmlFor="address" error={errors.address} className="@md:col-span-2">
             <Input id="address" value={values.address} onChange={(e) => set("address", e.target.value)} invalid={!!errors.address} />
           </Field>
-          <Field label="Giờ mở cửa Thứ 2 – Thứ 6" htmlFor="openingHoursWeekday" error={errors.openingHoursWeekday}>
-            <Input id="openingHoursWeekday" value={values.openingHoursWeekday} onChange={(e) => set("openingHoursWeekday", e.target.value)} invalid={!!errors.openingHoursWeekday} />
-          </Field>
-          <Field label="Giờ mở cửa Thứ 7 – CN" htmlFor="openingHoursWeekend" error={errors.openingHoursWeekend}>
-            <Input id="openingHoursWeekend" value={values.openingHoursWeekend} onChange={(e) => set("openingHoursWeekend", e.target.value)} invalid={!!errors.openingHoursWeekend} />
-          </Field>
           <Field label="Giới thiệu ngắn" htmlFor="tagline" error={errors.tagline} hint={`${values.tagline.length}/160 ký tự`} className="@md:col-span-2">
             <Textarea id="tagline" value={values.tagline} onChange={(e) => set("tagline", e.target.value)} className="min-h-20" invalid={!!errors.tagline} />
           </Field>
+        </div>
+      </SettingsCard>
+
+      <SettingsCard title="Giờ mở cửa & nhận đơn" description="Ngoài giờ mở cửa, khách không đặt hàng được (vẫn xem thực đơn bình thường).">
+        <div className="space-y-5">
+          {openStatus && (
+            <p className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium ${openStatus.isOpen ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700"}`}>
+              <Clock className="h-4 w-4" /> Hiện tại: {openStatus.message}
+            </p>
+          )}
+          <div className="grid gap-4 @md:grid-cols-2">
+            {(
+              [
+                ["weekdayOpen", "Thứ 2 – Thứ 6: mở cửa"],
+                ["weekdayClose", "Thứ 2 – Thứ 6: đóng cửa"],
+                ["weekendOpen", "Thứ 7 – CN: mở cửa"],
+                ["weekendClose", "Thứ 7 – CN: đóng cửa"],
+              ] as const
+            ).map(([key, label]) => (
+              <Field key={key} label={label} htmlFor={key} error={errors[key]}>
+                <Input id={key} type="time" value={values[key]} onChange={(e) => set(key, e.target.value)} invalid={!!errors[key]} />
+              </Field>
+            ))}
+          </div>
+          <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-coffee-100 p-4">
+            <div>
+              <p className="text-sm font-medium text-coffee-900">Nhận đơn online</p>
+              <p className="text-xs text-coffee-500">Tắt khi quán nghỉ lễ / quá tải — khách sẽ thấy thông báo tạm ngưng nhận đơn.</p>
+            </div>
+            <Switch checked={values.acceptOrders} onChange={(v) => set("acceptOrders", v)} label="Nhận đơn online" />
+          </label>
+        </div>
+      </SettingsCard>
+
+      <SettingsCard title="Mạng xã hội" description="Hiện thành nút ở chân trang. Để trống mạng nào thì ẩn nút đó.">
+        <div className="grid gap-4">
+          {(
+            [
+              ["facebookUrl", "Facebook", "https://facebook.com/hungcafe"],
+              ["instagramUrl", "Instagram", "https://instagram.com/hungcafe"],
+              ["tiktokUrl", "TikTok", "https://tiktok.com/@hungcafe"],
+            ] as const
+          ).map(([key, label, placeholder]) => (
+            <Field key={key} label={label} htmlFor={key} error={errors[key]}>
+              <Input id={key} type="url" value={values[key]} onChange={(e) => set(key, e.target.value)} placeholder={placeholder} invalid={!!errors[key]} />
+            </Field>
+          ))}
         </div>
       </SettingsCard>
 
@@ -126,7 +168,7 @@ export default function AdminSettingsPage() {
       <div>
         <p className="text-sm text-coffee-500">Quản lý / Cài đặt</p>
         <h1 className="mt-1 font-display text-3xl font-bold text-coffee-950">Cài đặt cửa hàng</h1>
-        <p className="mt-1 text-coffee-600">Thông tin cửa hàng và phí giao hàng.</p>
+        <p className="mt-1 text-coffee-600">Thông tin cửa hàng, giờ mở cửa, mạng xã hội và phí giao hàng.</p>
       </div>
 
       <Link

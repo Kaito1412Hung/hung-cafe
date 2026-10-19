@@ -1,4 +1,12 @@
-export type NotificationType = "new_order" | "order_cancelled" | "low_stock" | "new_customer";
+export type NotificationType =
+  | "new_order"
+  | "order_cancelled"
+  | "low_stock"
+  | "new_customer"
+  | "password_reset"
+  | "contact_message"
+  /** Gửi cho khách khi đơn đổi trạng thái */
+  | "order_status";
 
 export interface Notification {
   id: number;

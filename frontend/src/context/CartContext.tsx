@@ -21,6 +21,8 @@ interface CartContextValue {
   clearCart: () => Promise<void>;
   /** Làm trống giỏ phía giao diện (sau khi đặt hàng, server đã tự xoá giỏ) */
   resetCart: () => void;
+  /** Tải lại giỏ từ server (VD sau khi "Mua lại" đơn cũ) */
+  reloadCart: () => Promise<void>;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -78,12 +80,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (user) setState({ userId: user.id, cart: EMPTY_CART });
   }, [user]);
 
+  const reloadCart = useCallback(async () => {
+    if (user) setState({ userId: user.id, cart: await cartService.get() });
+  }, [user]);
+
   const openCart = useCallback(() => setIsOpen(true), []);
   const closeCart = useCallback(() => setIsOpen(false), []);
 
   return (
     <CartContext.Provider
-      value={{ cart, loading, pendingIds, isOpen, openCart, closeCart, addItem, updateQuantity, removeItem, clearCart, resetCart }}
+      value={{ cart, loading, pendingIds, isOpen, openCart, closeCart, addItem, updateQuantity, removeItem, clearCart, resetCart, reloadCart }}
     >
       {children}
     </CartContext.Provider>

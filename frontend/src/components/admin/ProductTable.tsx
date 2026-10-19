@@ -4,7 +4,8 @@ import { PackageOpen, Pencil, Star, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Switch } from "@/components/ui/Switch";
 import { ProductImage } from "@/components/ui/ProductImage";
-import { cn, formatDate, formatPrice, getCategoryLabel } from "@/lib/utils";
+import { cn, formatDate, formatPrice } from "@/lib/utils";
+import { useCategories } from "@/context/CategoriesContext";
 import type { Product } from "@/types/product";
 
 interface ProductTableProps {
@@ -23,6 +24,7 @@ function StockBadge({ stock }: { stock: number }) {
 }
 
 export function ProductTable({ products, loading, togglingId, onEdit, onDelete, onToggleAvailable }: ProductTableProps) {
+  const { getLabel } = useCategories();
   if (!loading && products.length === 0) {
     return (
       <div className="flex flex-col items-center px-6 py-20 text-center">
@@ -81,7 +83,7 @@ export function ProductTable({ products, loading, togglingId, onEdit, onDelete, 
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <Badge>{getCategoryLabel(p.category)}</Badge>
+                    <Badge>{getLabel(p.category)}</Badge>
                   </td>
                   <td className="px-4 py-3 text-sm font-semibold text-coffee-950">{formatPrice(p.price)}</td>
                   <td className="px-4 py-3">

@@ -24,6 +24,11 @@ export const adminService = {
     return (await api<{ data: CustomerDetail }>(`/admin/customers/${id}/role`, { method: "PATCH", body: JSON.stringify({ role }) })).data;
   },
 
+  /** Tạo mật khẩu tạm cho khách (chỉ hiện 1 lần) */
+  async resetPassword(id: number): Promise<{ email: string; temporaryPassword: string }> {
+    return (await api<{ data: { email: string; temporaryPassword: string } }>(`/admin/customers/${id}/reset-password`, { method: "POST" })).data;
+  },
+
   async deleteCustomer(id: number): Promise<void> {
     await api(`/admin/customers/${id}`, { method: "DELETE" });
   },

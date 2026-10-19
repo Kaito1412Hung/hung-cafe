@@ -4,6 +4,7 @@ import { ToastProvider } from "@/components/ui/Toast";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
 import { ShopSettingsProvider } from "@/context/ShopSettingsContext";
+import { CategoriesProvider } from "@/context/CategoriesContext";
 import "./globals.css";
 
 const beVietnam = Be_Vietnam_Pro({
@@ -18,11 +19,19 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
+  // Địa chỉ web thật khi deploy (để link ảnh chia sẻ là link đầy đủ)
+  metadataBase: new URL(process.env.SITE_URL ?? "http://localhost:3000"),
   title: {
     default: "Hưng Café — Cà phê rang xay thủ công",
     template: "%s | Hưng Café",
   },
   description: "Cà phê nguyên chất rang mộc, trà và bánh ngọt làm mới mỗi ngày.",
+  // Thông tin khi gửi link qua Zalo / Facebook (ảnh lấy từ app/opengraph-image.tsx)
+  openGraph: {
+    siteName: "Hưng Café",
+    locale: "vi_VN",
+    type: "website",
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -30,11 +39,13 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="vi" data-scroll-behavior="smooth">
       <body className={`${beVietnam.variable} ${playfair.variable} font-sans antialiased`}>
         <ShopSettingsProvider>
-          <AuthProvider>
-            <CartProvider>
-              <ToastProvider>{children}</ToastProvider>
-            </CartProvider>
-          </AuthProvider>
+          <CategoriesProvider>
+            <AuthProvider>
+              <CartProvider>
+                <ToastProvider>{children}</ToastProvider>
+              </CartProvider>
+            </AuthProvider>
+          </CategoriesProvider>
         </ShopSettingsProvider>
       </body>
     </html>

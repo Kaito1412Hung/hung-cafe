@@ -113,6 +113,13 @@ export function AuthForm({ mode }: { mode: Mode }) {
             </button>
           </div>
         </Field>
+        {isLogin && (
+          <div className="-mt-2 text-right">
+            <Link href="/forgot-password" className="text-sm font-medium text-coffee-600 underline-offset-4 hover:text-coffee-950 hover:underline">
+              Quên mật khẩu?
+            </Link>
+          </div>
+        )}
 
         <Button type="submit" size="lg" loading={submitting} className="w-full rounded-xl">
           {isLogin ? "Đăng nhập" : "Đăng ký"}

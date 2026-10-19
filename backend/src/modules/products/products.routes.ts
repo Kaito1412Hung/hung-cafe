@@ -9,6 +9,7 @@ const adminOnly = [requireAuth, requireRole("admin")];
 
 // Ai cũng xem được thực đơn
 productsRouter.get("/", controller.list);
+productsRouter.get("/slug/:slug", controller.getBySlug); // đặt TRƯỚC "/:id"
 productsRouter.get("/:id", controller.getOne);
 
 // Chỉ admin được thêm / sửa / xoá

@@ -1,10 +1,11 @@
 import { pool } from "../../db/pool";
 import { AppError } from "../../utils/AppError";
+import { slugify } from "../../utils/slugify";
 import type { Product, ProductInput, ProductPatch } from "./products.schema";
 
 // Đổi tên cột snake_case (DB) → camelCase (JSON) ngay trong câu SQL
 const COLUMNS = `
-  id, name, description, price, category, image, stock,
+  id, slug, name, description, price, category, image, stock,
   is_available   AS "isAvailable",
   is_best_seller AS "isBestSeller",
   created_at     AS "createdAt",
@@ -46,6 +47,40 @@ export async function findAll(filters: ProductFilters = {}): Promise<Product[]> 
   return rows;
 }
 
+/** Tạo slug không trùng: "ca-phe-sua-da", nếu đã có thì "ca-phe-sua-da-2", "-3"... */
+async function uniqueSlug(name: string, excludeId = 0) {
+  const base = slugify(name);
+  const { rows } = await pool.query<{ slug: string }>(
+    "SELECT slug FROM products WHERE (slug = $1 OR slug LIKE $1 || '-%') AND id <> $2",
+    [base, excludeId],
+  );
+  const taken = new Set(rows.map((r) => r.slug));
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base}-${n}`)) n++;
+  return `${base}-${n}`;
+}
+
+/** Điền slug cho các món chưa có (dữ liệu cũ / dữ liệu mẫu) — gọi trong "npm run db:setup" */
+export async function backfillSlugs() {
+  const { rows } = await pool.query<{ id: number; name: string }>("SELECT id, name FROM products WHERE slug IS NULL ORDER BY id");
+  for (const p of rows) {
+    await pool.query("UPDATE products SET slug = $1 WHERE id = $2", [await uniqueSlug(p.name, p.id), p.id]);
+  }
+  return rows.length;
+}
+
+async function assertCategoryExists(slug: string) {
+  const { rowCount } = await pool.query("SELECT 1 FROM categories WHERE slug = $1", [slug]);
+  if (!rowCount) throw new AppError(400, "Danh mục không tồn tại", { category: "Danh mục không tồn tại" });
+}
+
+export async function findBySlug(slug: string): Promise<Product> {
+  const { rows } = await pool.query<Product>(`SELECT ${COLUMNS} FROM products WHERE slug = $1`, [slug]);
+  if (!rows[0]) throw new AppError(404, "Không tìm thấy món này");
+  return rows[0];
+}
+
 export async function findById(id: number): Promise<Product> {
   const { rows } = await pool.query<Product>(`SELECT ${COLUMNS} FROM products WHERE id = $1`, [id]);
   if (!rows[0]) throw new AppError(404, "Không tìm thấy sản phẩm");
@@ -53,11 +88,12 @@ export async function findById(id: number): Promise<Product> {
 }
 
 export async function create(input: ProductInput): Promise<Product> {
+  await assertCategoryExists(input.category);
   const { rows } = await pool.query<Product>(
-    `INSERT INTO products (name, description, price, category, image, stock, is_available, is_best_seller)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `INSERT INTO products (slug, name, description, price, category, image, stock, is_available, is_best_seller)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING ${COLUMNS}`,
-    [input.name, input.description, input.price, input.category, input.image, input.stock, input.isAvailable, input.isBestSeller],
+    [await uniqueSlug(input.name), input.name, input.description, input.price, input.category, input.image, input.stock, input.isAvailable, input.isBestSeller],
   );
   return rows[0];
 }
@@ -67,11 +103,19 @@ export async function update(id: number, input: ProductPatch): Promise<Product> 
   const sets: string[] = [];
   const values: unknown[] = [];
 
+  if (input.category !== undefined) await assertCategoryExists(input.category);
+
   for (const [field, value] of Object.entries(input)) {
     const column = FIELD_TO_COLUMN[field as keyof ProductInput];
     if (!column || value === undefined) continue;
     values.push(value);
     sets.push(`${column} = $${values.length}`);
+  }
+
+  // Đổi tên món → cập nhật luôn đường dẫn (slug) cho khớp tên mới
+  if (input.name !== undefined) {
+    values.push(await uniqueSlug(input.name, id));
+    sets.push(`slug = $${values.length}`);
   }
 
   values.push(id);

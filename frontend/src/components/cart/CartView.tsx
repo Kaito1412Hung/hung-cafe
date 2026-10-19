@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Loader2, ShieldCheck, Trash2, Truck } from "lucide-react";
+import { ArrowLeft, Clock, Loader2, ShieldCheck, Trash2, Truck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useAuth } from "@/context/AuthContext";
@@ -20,7 +20,9 @@ export function CartView() {
   const [checkoutKey, setCheckoutKey] = useState(0);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
 
-  const { settings, getShippingFee } = useShopSettings();
+  const { settings, openStatus, getShippingFee } = useShopSettings();
+  // Ngoài giờ mở cửa / tạm ngưng nhận đơn → khoá nút đặt hàng (backend cũng chặn)
+  const isClosed = openStatus !== null && !openStatus.isOpen;
   const shipping = getShippingFee(cart.subtotal);
   const total = cart.subtotal + shipping;
   const remainingForFree = Math.max(0, settings.freeShippingThreshold - cart.subtotal);
@@ -111,7 +113,7 @@ export function CartView() {
           <Button
             size="lg"
             className="w-full rounded-xl"
-            disabled={!hasPurchasable || hasSoldOut || pendingIds.length > 0}
+            disabled={!hasPurchasable || hasSoldOut || isClosed || pendingIds.length > 0}
             onClick={() => {
               setCheckoutKey((k) => k + 1);
               setCheckoutOpen(true);
@@ -119,6 +121,14 @@ export function CartView() {
           >
             Đặt hàng
           </Button>
+          {isClosed && (
+            <p className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-900 ring-1 ring-amber-600/20">
+              <Clock className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                <strong>{openStatus?.message}.</strong> Giỏ hàng vẫn được giữ, bạn quay lại đặt khi quán mở cửa nhé.
+              </span>
+            </p>
+          )}
           {hasSoldOut && (
             <p className="rounded-xl bg-red-50 px-3 py-2 text-center text-xs font-medium text-red-700">
               Vui lòng xoá các món &ldquo;Tạm hết&rdquo; khỏi giỏ trước khi đặt hàng

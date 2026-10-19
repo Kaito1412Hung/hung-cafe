@@ -1,19 +1,22 @@
 "use client";
 
+import Link from "next/link";
 import { Loader2, Plus, Star } from "lucide-react";
 import { ProductImage } from "@/components/ui/ProductImage";
 import { useCartActions } from "@/hooks/useCartActions";
-import { cn, formatPrice, getCategoryLabel } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
+import { useCategories } from "@/context/CategoriesContext";
 import type { Product } from "@/types/product";
 
 export function ProductCard({ product }: { product: Product }) {
   const { addToCart, pendingIds } = useCartActions();
+  const { getLabel } = useCategories();
   const adding = pendingIds.includes(product.id);
   const soldOut = !product.isAvailable || product.stock === 0;
 
   return (
     <article className="group flex flex-col rounded-3xl bg-white p-3 shadow-sm ring-1 ring-coffee-100 transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-coffee-900/10">
-      <div className="relative aspect-square overflow-hidden rounded-2xl">
+      <Link href={`/menu/${product.slug}`} className="relative block aspect-square overflow-hidden rounded-2xl" aria-label={`Xem chi tiết ${product.name}`}>
         <ProductImage
           src={product.image}
           alt={product.name}
@@ -29,11 +32,15 @@ export function ProductCard({ product }: { product: Product }) {
             <span className="rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-coffee-900">Tạm hết</span>
           </div>
         )}
-      </div>
+      </Link>
 
       <div className="flex flex-1 flex-col px-2 pb-1 pt-4">
-        <p className="text-xs font-medium uppercase tracking-wider text-coffee-500">{getCategoryLabel(product.category)}</p>
-        <h3 className="mt-1 font-display text-lg font-semibold text-coffee-950">{product.name}</h3>
+        <p className="text-xs font-medium uppercase tracking-wider text-coffee-500">{getLabel(product.category)}</p>
+        <h3 className="mt-1 font-display text-lg font-semibold text-coffee-950">
+          <Link href={`/menu/${product.slug}`} className="transition hover:text-coffee-600">
+            {product.name}
+          </Link>
+        </h3>
         <p className="mt-1.5 line-clamp-2 flex-1 text-sm leading-relaxed text-coffee-600">{product.description}</p>
 
         <div className="mt-4 flex items-center justify-between">

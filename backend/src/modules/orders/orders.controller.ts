@@ -22,6 +22,10 @@ export async function cancelMine(req: Request, res: Response) {
   res.json({ data: await orderService.cancelByCustomer(req.user!.id, parseId(req)) });
 }
 
+export async function reorderMine(req: Request, res: Response) {
+  res.json({ data: await orderService.reorder(req.user!.id, parseId(req)) });
+}
+
 /** Admin xem được mọi đơn, khách chỉ xem được đơn của mình */
 export async function getOne(req: Request, res: Response) {
   const order = await orderService.findById(parseId(req));

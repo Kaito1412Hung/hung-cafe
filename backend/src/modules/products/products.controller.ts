@@ -17,6 +17,10 @@ export async function list(req: Request, res: Response) {
   res.json({ data: products });
 }
 
+export async function getBySlug(req: Request, res: Response) {
+  res.json({ data: await productService.findBySlug(String(req.params.slug)) });
+}
+
 export async function getOne(req: Request, res: Response) {
   res.json({ data: await productService.findById(parseId(req)) });
 }

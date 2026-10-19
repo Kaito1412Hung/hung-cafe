@@ -1,3 +1,5 @@
+import bcrypt from "bcryptjs";
+import { randomInt } from "node:crypto";
 import { pool } from "../../db/pool";
 import { AppError } from "../../utils/AppError";
 import type { Role } from "../auth/auth.schema";
@@ -70,4 +72,25 @@ export async function remove(actorId: number, id: number) {
   if (target.role === "admin") throw new AppError(400, "Hãy hạ quyền quản trị viên trước khi xoá");
   // Đơn hàng cũ vẫn giữ lại (user_id → NULL nhờ ON DELETE SET NULL), giỏ hàng bị xoá theo
   await pool.query("DELETE FROM users WHERE id = $1", [id]);
+}
+
+/** Mật khẩu tạm 10 ký tự, bỏ các ký tự dễ nhầm (0/O, 1/l/I) để đọc qua điện thoại không sai */
+function generateTemporaryPassword() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+  return Array.from({ length: 10 }, () => chars[randomInt(chars.length)]).join("");
+}
+
+/**
+ * Admin đặt lại mật khẩu cho khách: tạo mật khẩu tạm, đăng xuất khách khỏi mọi thiết bị.
+ * Mật khẩu tạm chỉ trả về MỘT lần cho admin (DB chỉ lưu bản đã băm).
+ */
+export async function resetPassword(actorId: number, id: number) {
+  if (actorId === id) throw new AppError(400, "Hãy đổi mật khẩu của bạn trong trang Hồ sơ");
+  const target = await findById(id);
+  const temporaryPassword = generateTemporaryPassword();
+  await pool.query("UPDATE users SET password_hash = $1, token_version = token_version + 1 WHERE id = $2", [
+    await bcrypt.hash(temporaryPassword, 10),
+    id,
+  ]);
+  return { email: target.email, temporaryPassword };
 }

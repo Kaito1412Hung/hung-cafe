@@ -12,7 +12,7 @@ npm run db:setup            # tạo database + bảng + dữ liệu mẫu
 npm run dev                 # http://localhost:4000
 ```
 
-Tài khoản mẫu (admin + khách) lấy từ các biến `SEED_*` trong `.env`.
+Tài khoản mẫu (admin + khách) lấy từ các biến `SEED_*` trong `.env`. 5 khách demo (`lan.nguyen@`, `khoa.tran@`, `phuc.le@`, `anh.pham@`, `ha.do@example.com`) dùng chung mật khẩu `SEED_DEMO_PASSWORD`.
 
 | Lệnh               | Tác dụng                                                  |
 | ------------------ | --------------------------------------------------------- |
@@ -31,11 +31,15 @@ Tài khoản mẫu (admin + khách) lấy từ các biến `SEED_*` trong `.env`
 | POST   | `/api/auth/logout`   | Ai cũng được | Xoá cookie                             |
 | GET    | `/api/auth/me`       | Đã đăng nhập | Thông tin người đang đăng nhập         |
 | GET    | `/api/products`      | Ai cũng được | Danh sách (`?category=tea&search=trà`) |
+| GET    | `/api/products/slug/:slug` | Ai cũng được | Chi tiết theo đường dẫn đẹp (`ca-phe-sua-da`) |
 | GET    | `/api/products/:id`  | Ai cũng được | Chi tiết                               |
 | POST   | `/api/products`      | **Admin**    | Thêm                                   |
 | PUT    | `/api/products/:id`  | **Admin**    | Sửa toàn bộ                            |
 | PATCH  | `/api/products/:id`  | **Admin**    | Sửa một vài trường                     |
 | DELETE | `/api/products/:id`  | **Admin**    | Xoá                                    |
+| GET    | `/api/categories`                | Ai cũng được | Danh mục (kèm số món)                  |
+| POST/PUT/DELETE | `/api/categories(/:id)` | **Admin**    | Thêm / sửa `{ name, sortOrder }` / xoá (chặn nếu còn món) |
+| POST   | `/api/uploads/products`          | **Admin**    | Upload ảnh `{ image: dataURL }` → `{ url: "/api/uploads/products/..." }` |
 | GET    | `/api/cart`                      | Đã đăng nhập | Xem giỏ hàng (kèm tổng số lượng, tạm tính) |
 | POST   | `/api/cart/items`                | Đã đăng nhập | Thêm món `{ productId, quantity }` (cộng dồn) |
 | PATCH  | `/api/cart/items/:productId`     | Đã đăng nhập | Đổi số lượng `{ quantity }`            |
@@ -44,6 +48,7 @@ Tài khoản mẫu (admin + khách) lấy từ các biến `SEED_*` trong `.env`
 | POST   | `/api/orders`                    | Đã đăng nhập | Đặt hàng từ giỏ `{ customerName, phone, address, note }` |
 | GET    | `/api/orders/my`                 | Đã đăng nhập | Đơn hàng của tôi                       |
 | PATCH  | `/api/orders/my/:id/cancel`      | Đã đăng nhập | Khách tự huỷ (chỉ khi "Chờ xác nhận")  |
+| POST   | `/api/orders/my/:id/reorder`     | Đã đăng nhập | Mua lại: thêm các món của đơn cũ vào giỏ (bỏ qua món hết hàng) |
 | GET    | `/api/orders/:id`                | Admin / chủ đơn | Chi tiết đơn                        |
 | GET    | `/api/orders`                    | **Admin**    | Tất cả đơn + thống kê (`?status=pending&search=0971`) |
 | PATCH  | `/api/orders/:id/status`         | **Admin**    | Đổi trạng thái `{ status }`            |
@@ -51,13 +56,20 @@ Tài khoản mẫu (admin + khách) lấy từ các biến `SEED_*` trong `.env`
 | PUT    | `/api/auth/me/avatar`            | Đã đăng nhập | Ảnh đại diện `{ avatar }` (data URL ≤ 200KB, `""` = xoá) |
 | DELETE | `/api/auth/me`                   | Khách hàng   | Tự xoá tài khoản `{ password }`        |
 | POST   | `/api/auth/logout-all`           | Đã đăng nhập | Đăng xuất khỏi tất cả thiết bị         |
+| POST   | `/api/auth/forgot-password`      | Ai cũng được | Báo quên mật khẩu `{ email }` → thông báo cho admin |
 | PATCH  | `/api/auth/password`             | Đã đăng nhập | Đổi mật khẩu (các thiết bị khác bị đăng xuất) |
-| GET    | `/api/settings`                  | Ai cũng được | Thông tin quán + phí giao hàng         |
+| GET    | `/api/settings`                  | Ai cũng được | Thông tin quán, giờ mở cửa, mạng xã hội, phí giao + `openStatus` (đang mở / đóng) |
 | PUT    | `/api/settings`                  | **Admin**    | Cập nhật cài đặt cửa hàng              |
+| POST   | `/api/contact`                   | Ai cũng được | Gửi form liên hệ (tối đa 3 lần / 10 phút / email) → thông báo cho admin |
+| GET / PATCH / DELETE | `/api/contact(/:id)`   | **Admin**    | Hộp thư liên hệ, đánh dấu đã đọc `{ isRead }`, xoá |
+| POST   | `/api/newsletter`                | Ai cũng được | Đăng ký nhận tin `{ email }` (trùng → báo đã đăng ký) |
+| GET / DELETE | `/api/newsletter(/:id)`        | **Admin**    | Danh sách email đăng ký nhận tin, xoá  |
+| GET    | `/api/stats/public`              | Ai cũng được | Số liệu thật cho trang chủ (số món, khách, đơn đã giao, món bán chạy) |
 | GET    | `/api/admin/stats?days=7`        | **Admin**    | Số liệu trang Tổng quan (7/30/90 ngày) |
 | GET    | `/api/admin/customers`           | **Admin**    | Danh sách tài khoản (`?role=customer&search=`) |
 | GET    | `/api/admin/customers/:id`       | **Admin**    | Chi tiết + lịch sử đơn                 |
 | PATCH  | `/api/admin/customers/:id/role`  | **Admin**    | Đổi quyền `{ role }`                   |
+| POST   | `/api/admin/customers/:id/reset-password` | **Admin** | Tạo mật khẩu tạm (chỉ trả về 1 lần) |
 | DELETE | `/api/admin/customers/:id`       | **Admin**    | Xoá tài khoản khách                    |
 | GET    | `/api/notifications?limit=20`    | Đã đăng nhập | Thông báo của tôi + số chưa đọc        |
 | PATCH  | `/api/notifications/:id/read`    | Đã đăng nhập | Đánh dấu 1 thông báo đã đọc            |
@@ -79,7 +91,9 @@ src/
 ├── middlewares/           # requireAuth, requireRole, validateBody, errorHandler
 ├── modules/
 │   ├── auth/              # routes → controller → service → DB
-│   ├── products/
+│   ├── products/          # Có slug cho trang chi tiết
+│   ├── categories/        # Danh mục (bảng categories)
+│   ├── uploads/           # Upload ảnh sản phẩm → thư mục uploads/ (không đưa lên Git)
 │   ├── cart/              # Giỏ hàng (bảng cart_items)
 │   ├── orders/            # Đơn hàng (orders, order_items)
 │   ├── settings/          # Cài đặt cửa hàng (bảng settings, JSONB)
