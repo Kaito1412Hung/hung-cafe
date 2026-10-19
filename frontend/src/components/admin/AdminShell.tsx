@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ExternalLink, LayoutGrid, Mail, Menu, Package, Settings, ShoppingCart, Tags, Users, X } from "lucide-react";
+import { ExternalLink, LayoutGrid, Mail, Menu, Package, Settings, ShoppingCart, Tags, TicketPercent, Users, X } from "lucide-react";
 import { Logo } from "@/components/layout/Logo";
 import { NotificationBell } from "./NotificationBell";
 import { AdminUserMenu } from "./AdminUserMenu";
@@ -15,6 +15,7 @@ const NAV = [
   { href: "/admin/categories", label: "Danh mục", icon: Tags },
   { href: "/admin/dashboard", label: "Tổng quan", icon: LayoutGrid },
   { href: "/admin/orders", label: "Đơn hàng", icon: ShoppingCart },
+  { href: "/admin/coupons", label: "Mã giảm giá", icon: TicketPercent },
   { href: "/admin/customers", label: "Khách hàng", icon: Users },
   { href: "/admin/contact", label: "Liên hệ", icon: Mail },
   { href: "/admin/settings", label: "Cài đặt", icon: Settings },

@@ -6,7 +6,8 @@ export type NotificationType =
   | "password_reset"
   | "contact_message"
   /** Gửi cho khách khi đơn đổi trạng thái */
-  | "order_status";
+  | "order_status"
+  | "new_review";
 
 export interface Notification {
   id: number;

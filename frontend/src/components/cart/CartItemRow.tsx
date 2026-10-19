@@ -1,18 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { ProductImage } from "@/components/ui/ProductImage";
 import { useCartActions } from "@/hooks/useCartActions";
 import { cn, formatPrice } from "@/lib/utils";
+import { describeOptions } from "@/lib/options";
 import { useCategories } from "@/context/CategoriesContext";
 import type { CartItem } from "@/types/cart";
 import { QuantityStepper } from "./QuantityStepper";
 
 /** Một dòng món trong giỏ. `compact` dùng cho ngăn kéo, bản thường dùng cho trang /cart */
 export function CartItemRow({ item, compact }: { item: CartItem; compact?: boolean }) {
-  const { pendingIds, changeQuantity, remove } = useCartActions();
+  const { pendingIds, changeQuantity, remove, closeCart } = useCartActions();
   const { getLabel } = useCategories();
-  const pending = pendingIds.includes(item.productId);
+  const pending = pendingIds.includes(item.id);
+  const options = describeOptions(item);
   const soldOut = !item.isAvailable || item.stock === 0;
 
   return (
@@ -27,11 +30,17 @@ export function CartItemRow({ item, compact }: { item: CartItem; compact?: boole
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             {!compact && <p className="text-xs font-medium uppercase tracking-wider text-coffee-500">{getLabel(item.category)}</p>}
-            <h3 className={cn("truncate font-semibold text-coffee-950", !compact && "font-display text-lg")}>{item.name}</h3>
-            <p className="text-sm text-coffee-600">{formatPrice(item.price)}</p>
+            <h3 className={cn("truncate font-semibold text-coffee-950", !compact && "font-display text-lg")}>
+              <Link href={`/menu/${item.slug}`} onClick={closeCart} className="hover:text-coffee-600">
+                {item.name}
+              </Link>
+            </h3>
+            {options && <p className="text-xs text-coffee-600">{options}</p>}
+            {item.note && <p className="truncate text-xs italic text-coffee-500">Ghi chú: {item.note}</p>}
+            <p className="text-sm text-coffee-600">{formatPrice(item.unitPrice)}</p>
           </div>
           <button
-            onClick={() => remove(item.productId, item.name)}
+            onClick={() => remove(item.id, item.name)}
             disabled={pending}
             className="shrink-0 cursor-pointer rounded-lg p-1.5 text-coffee-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed"
             aria-label={`Xoá ${item.name} khỏi giỏ`}
@@ -51,7 +60,7 @@ export function CartItemRow({ item, compact }: { item: CartItem; compact?: boole
               max={Math.min(item.stock, 99)}
               disabled={pending}
               size={compact ? "sm" : "md"}
-              onChange={(q) => changeQuantity(item.productId, q)}
+              onChange={(q) => changeQuantity(item.id, q)}
             />
           )}
           <span className={cn("font-bold text-coffee-950", soldOut && "text-coffee-400 line-through")}>{formatPrice(item.lineTotal)}</span>

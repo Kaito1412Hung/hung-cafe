@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowDownRight, ArrowRight, ArrowUpRight, Clock, PackageX, Receipt, ShoppingBag, UserPlus, Wallet } from "lucide-react";
+import { ArrowDownRight, ArrowRight, ArrowUpRight, Clock, FileSpreadsheet, PackageX, Receipt, ShoppingBag, UserPlus, Wallet } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/ui/Button";
 import { ProductImage } from "@/components/ui/ProductImage";
 import { RevenueChart } from "@/components/admin/RevenueChart";
 import { OrderStatusBadge } from "@/components/order/OrderStatusBadge";
@@ -60,6 +61,27 @@ export default function AdminDashboardPage() {
   const [days, setDays] = useState(7);
   const [result, setResult] = useState<{ days: number; stats: DashboardStats } | null>(null);
   const stats = result?.days === days ? result.stats : null;
+  const [exporting, setExporting] = useState(false);
+
+  /** Tải file Excel báo cáo cùng khoảng thời gian đang chọn */
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const { blob, fileName } = await adminService.downloadRevenueReport(days);
+      // Tạo link tạm trỏ tới file rồi "bấm" để trình duyệt tải về
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast(`Đã tải ${fileName}`);
+    } catch (err) {
+      toast((err as Error).message, "error");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -93,19 +115,24 @@ export default function AdminDashboardPage() {
           <h1 className="mt-1 font-display text-3xl font-bold text-coffee-950">Xin chào, {user ? displayName(user) : ""} 👋</h1>
           <p className="mt-1 text-coffee-600">Tình hình kinh doanh của quán trong {days} ngày gần nhất.</p>
         </div>
-        <div className="inline-flex self-start rounded-xl bg-white p-1 shadow-sm ring-1 ring-coffee-100 sm:self-auto">
-          {RANGES.map((r) => (
-            <button
-              key={r.days}
-              onClick={() => setDays(r.days)}
-              className={cn(
-                "cursor-pointer whitespace-nowrap rounded-lg px-3.5 py-1.5 text-sm font-medium transition",
-                days === r.days ? "bg-coffee-900 text-cream" : "text-coffee-600 hover:bg-coffee-50",
-              )}
-            >
-              {r.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={handleExport} loading={exporting} className="bg-white">
+            {!exporting && <FileSpreadsheet className="h-4 w-4 text-emerald-700" />} Xuất Excel
+          </Button>
+          <div className="inline-flex self-start rounded-xl bg-white p-1 shadow-sm ring-1 ring-coffee-100 sm:self-auto">
+            {RANGES.map((r) => (
+              <button
+                key={r.days}
+                onClick={() => setDays(r.days)}
+                className={cn(
+                  "cursor-pointer whitespace-nowrap rounded-lg px-3.5 py-1.5 text-sm font-medium transition",
+                  days === r.days ? "bg-coffee-900 text-cream" : "text-coffee-600 hover:bg-coffee-50",
+                )}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

@@ -83,8 +83,17 @@ export function Footer() {
           )}
         </div>
       </div>
-      <div className="border-t border-coffee-900 py-6 text-center text-xs text-coffee-400">
-        © {new Date().getFullYear()} {settings.name}. Dự án học tập Next.js + TypeScript.
+      <div className="border-t border-coffee-900">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-6 text-xs text-coffee-400 sm:px-6 md:flex-row lg:px-8">
+          <p>
+            © {new Date().getFullYear()} {settings.name}. Dự án học tập Next.js + TypeScript.
+          </p>
+          <nav aria-label="Chính sách" className="flex flex-wrap justify-center gap-x-5 gap-y-2">
+            <Link href="/chinh-sach/giao-hang" className="hover:text-cream">Chính sách giao hàng</Link>
+            <Link href="/chinh-sach/doi-tra" className="hover:text-cream">Đổi trả & hoàn tiền</Link>
+            <Link href="/chinh-sach/bao-mat" className="hover:text-cream">Bảo mật thông tin</Link>
+          </nav>
+        </div>
       </div>
     </footer>
   );

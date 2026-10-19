@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Banknote } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
@@ -30,11 +31,15 @@ function validate(v: CheckoutInput): Errors {
 interface CheckoutModalProps {
   open: boolean;
   total: number;
+  /** Mã giảm giá đã áp dụng ở giỏ ("" = không có) */
+  couponCode: string;
+  /** Server báo mã không còn dùng được lúc đặt → giỏ bỏ mã đi */
+  onCouponInvalid: () => void;
   onClose: () => void;
 }
 
 /** Cha truyền `key` mới mỗi lần mở để form reset */
-export function CheckoutModal({ open, total, onClose }: CheckoutModalProps) {
+export function CheckoutModal({ open, total, couponCode, onCouponInvalid, onClose }: CheckoutModalProps) {
   const { user, updateUser } = useAuth();
   const { resetCart } = useCart();
   const toast = useToast();
@@ -65,7 +70,7 @@ export function CheckoutModal({ open, total, onClose }: CheckoutModalProps) {
 
     setSubmitting(true);
     try {
-      const order = await orderService.checkout(values);
+      const order = await orderService.checkout({ ...values, couponCode });
       resetCart();
       // Lưu SĐT + địa chỉ vào hồ sơ để lần sau khỏi gõ lại (lỗi ở bước này không ảnh hưởng đơn)
       if (saveInfo && infoChanged) {
@@ -78,6 +83,11 @@ export function CheckoutModal({ open, total, onClose }: CheckoutModalProps) {
       router.push(`/orders?new=${order.id}`);
     } catch (err) {
       if (err instanceof ApiError && err.errors) setErrors(err.errors);
+      // Lỗi do mã giảm giá (hết lượt / hết hạn ngay lúc đặt) → bỏ mã, khách xem lại tổng tiền rồi đặt lại
+      if (couponCode && err instanceof ApiError && /mã/i.test(err.message)) {
+        onCouponInvalid();
+        onClose();
+      }
       toast((err as Error).message, "error");
       setSubmitting(false);
     }
@@ -130,6 +140,17 @@ export function CheckoutModal({ open, total, onClose }: CheckoutModalProps) {
             <p className="text-coffee-600">Thanh toán online sẽ có ở phiên bản sau.</p>
           </div>
         </div>
+        <p className="text-xs text-coffee-500">
+          Bằng việc đặt hàng, bạn đồng ý với{" "}
+          <Link href="/chinh-sach/giao-hang" target="_blank" className="underline hover:text-coffee-800">
+            chính sách giao hàng
+          </Link>{" "}
+          và{" "}
+          <Link href="/chinh-sach/doi-tra" target="_blank" className="underline hover:text-coffee-800">
+            đổi trả
+          </Link>{" "}
+          của quán.
+        </p>
       </form>
     </Modal>
   );

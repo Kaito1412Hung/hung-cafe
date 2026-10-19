@@ -30,9 +30,10 @@ export async function seed() {
   // Thêm ngược để món đầu danh sách có created_at mới nhất
   for (const p of [...SEED_PRODUCTS].reverse()) {
     await pool.query(
-      `INSERT INTO products (name, description, price, category, image, stock, is_available, is_best_seller)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [p.name, p.description, p.price, p.category, p.image, p.stock, p.isAvailable, p.isBestSeller],
+      `INSERT INTO products (name, description, price, category, image, stock, is_available, is_best_seller, has_options)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      // Bánh không có chọn size / đường / đá
+      [p.name, p.description, p.price, p.category, p.image, p.stock, p.isAvailable, p.isBestSeller, p.category !== "cake"],
     );
   }
   console.log(`✅ Đã thêm ${SEED_PRODUCTS.length} sản phẩm mẫu`);

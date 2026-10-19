@@ -5,6 +5,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
 import { ShopSettingsProvider } from "@/context/ShopSettingsContext";
 import { CategoriesProvider } from "@/context/CategoriesContext";
+import { FavoritesProvider } from "@/context/FavoritesContext";
 import "./globals.css";
 
 const beVietnam = Be_Vietnam_Pro({
@@ -42,7 +43,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <CategoriesProvider>
             <AuthProvider>
               <CartProvider>
-                <ToastProvider>{children}</ToastProvider>
+                <FavoritesProvider>
+                  <ToastProvider>{children}</ToastProvider>
+                </FavoritesProvider>
               </CartProvider>
             </AuthProvider>
           </CategoriesProvider>

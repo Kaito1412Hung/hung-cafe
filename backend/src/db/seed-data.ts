@@ -3,7 +3,7 @@ import type { ProductInput } from "../modules/products/products.schema";
 const unsplash = (id: string) => `https://images.unsplash.com/photo-${id}?w=800&q=80&auto=format&fit=crop`;
 
 /** Dữ liệu sản phẩm mẫu được nạp vào DB bởi "npm run db:setup" */
-export const SEED_PRODUCTS: ProductInput[] = [
+export const SEED_PRODUCTS: Omit<ProductInput, "hasOptions">[] = [
   {
     name: "Cà Phê Sữa Đá",
     description: "Robusta Buôn Ma Thuột pha phin, hoà quyện sữa đặc béo ngậy — hương vị Sài Gòn chuẩn vị.",

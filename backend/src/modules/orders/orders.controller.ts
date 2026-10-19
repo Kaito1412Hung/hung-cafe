@@ -19,7 +19,7 @@ export async function listMine(req: Request, res: Response) {
 }
 
 export async function cancelMine(req: Request, res: Response) {
-  res.json({ data: await orderService.cancelByCustomer(req.user!.id, parseId(req)) });
+  res.json({ data: await orderService.cancelByCustomer(req.user!.id, parseId(req), req.body.reason) });
 }
 
 export async function reorderMine(req: Request, res: Response) {
@@ -50,5 +50,5 @@ export async function listAll(req: Request, res: Response) {
 }
 
 export async function updateStatus(req: Request, res: Response) {
-  res.json({ data: await orderService.changeStatus(parseId(req), req.body.status) });
+  res.json({ data: await orderService.changeStatus(parseId(req), req.body.status, { reason: req.body.reason }) });
 }

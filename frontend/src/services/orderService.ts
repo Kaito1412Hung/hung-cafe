@@ -11,8 +11,8 @@ export const orderService = {
     return (await api<{ data: Order[] }>("/orders/my")).data;
   },
 
-  async cancelMine(id: number): Promise<Order> {
-    return (await api<{ data: Order }>(`/orders/my/${id}/cancel`, { method: "PATCH" })).data;
+  async cancelMine(id: number, reason = ""): Promise<Order> {
+    return (await api<{ data: Order }>(`/orders/my/${id}/cancel`, { method: "PATCH", body: JSON.stringify({ reason }) })).data;
   },
 
   /** Bỏ lại các món của đơn cũ vào giỏ */
@@ -34,7 +34,8 @@ export const orderService = {
     return api<{ data: Order[]; summary: OrderSummary }>(`/orders${qs ? `?${qs}` : ""}`);
   },
 
-  async updateStatus(id: number, status: OrderStatus): Promise<Order> {
-    return (await api<{ data: Order }>(`/orders/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) })).data;
+  /** Huỷ đơn thì bắt buộc kèm lý do (khách sẽ thấy) */
+  async updateStatus(id: number, status: OrderStatus, reason = ""): Promise<Order> {
+    return (await api<{ data: Order }>(`/orders/${id}/status`, { method: "PATCH", body: JSON.stringify({ status, reason }) })).data;
   },
 };

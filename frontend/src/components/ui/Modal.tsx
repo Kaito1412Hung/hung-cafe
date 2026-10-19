@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +32,8 @@ export function Modal({ open, onClose, title, description, children, footer, siz
 
   if (!open) return null;
 
-  return (
+  // createPortal: gắn modal thẳng vào <body> → không bị lệch khi nằm trong phần tử có hiệu ứng transform (VD thẻ món)
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-coffee-950/50 backdrop-blur-sm" onClick={onClose} />
       <div
@@ -66,6 +68,7 @@ export function Modal({ open, onClose, title, description, children, footer, siz
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

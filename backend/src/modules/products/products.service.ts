@@ -8,8 +8,11 @@ const COLUMNS = `
   id, slug, name, description, price, category, image, stock,
   is_available   AS "isAvailable",
   is_best_seller AS "isBestSeller",
+  has_options    AS "hasOptions",
   created_at     AS "createdAt",
-  updated_at     AS "updatedAt"`;
+  updated_at     AS "updatedAt",
+  (SELECT ROUND(AVG(r.rating), 1)::float FROM reviews r WHERE r.product_id = products.id) AS "ratingAverage",
+  (SELECT COUNT(*)::int FROM reviews r WHERE r.product_id = products.id) AS "ratingCount"`;
 
 // Map field (camelCase) → cột DB. Chỉ những cột có trong đây mới được phép cập nhật.
 const FIELD_TO_COLUMN: Record<keyof ProductInput, string> = {
@@ -21,6 +24,7 @@ const FIELD_TO_COLUMN: Record<keyof ProductInput, string> = {
   stock: "stock",
   isAvailable: "is_available",
   isBestSeller: "is_best_seller",
+  hasOptions: "has_options",
 };
 
 export interface ProductFilters {
@@ -81,6 +85,13 @@ export async function findBySlug(slug: string): Promise<Product> {
   return rows[0];
 }
 
+/** Lấy nhiều món theo danh sách id, giữ đúng thứ tự truyền vào */
+export async function findByIds(ids: number[]): Promise<Product[]> {
+  if (!ids.length) return [];
+  const { rows } = await pool.query<Product>(`SELECT ${COLUMNS} FROM products WHERE id = ANY($1::int[])`, [ids]);
+  return ids.map((id) => rows.find((p) => p.id === id)).filter((p): p is Product => Boolean(p));
+}
+
 export async function findById(id: number): Promise<Product> {
   const { rows } = await pool.query<Product>(`SELECT ${COLUMNS} FROM products WHERE id = $1`, [id]);
   if (!rows[0]) throw new AppError(404, "Không tìm thấy sản phẩm");
@@ -90,10 +101,21 @@ export async function findById(id: number): Promise<Product> {
 export async function create(input: ProductInput): Promise<Product> {
   await assertCategoryExists(input.category);
   const { rows } = await pool.query<Product>(
-    `INSERT INTO products (slug, name, description, price, category, image, stock, is_available, is_best_seller)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO products (slug, name, description, price, category, image, stock, is_available, is_best_seller, has_options)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING ${COLUMNS}`,
-    [await uniqueSlug(input.name), input.name, input.description, input.price, input.category, input.image, input.stock, input.isAvailable, input.isBestSeller],
+    [
+      await uniqueSlug(input.name),
+      input.name,
+      input.description,
+      input.price,
+      input.category,
+      input.image,
+      input.stock,
+      input.isAvailable,
+      input.isBestSeller,
+      input.hasOptions,
+    ],
   );
   return rows[0];
 }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ItemOptions } from "../cart/options";
 
 export const ORDER_STATUSES = ["pending", "confirmed", "shipping", "completed", "cancelled"] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
@@ -32,15 +33,26 @@ export const checkoutSchema = z.object({
     .refine((v) => /^(0|\+84)\d{9}$/.test(v), "Số điện thoại không hợp lệ (VD: 0971131945)"),
   address: z.string().trim().min(5, "Địa chỉ cần ít nhất 5 ký tự").max(255, "Địa chỉ tối đa 255 ký tự"),
   note: z.string().trim().max(255, "Ghi chú tối đa 255 ký tự").default(""),
+  /** Mã giảm giá (không bắt buộc) */
+  couponCode: z.string().trim().toUpperCase().max(30).default(""),
 });
 
-export const updateStatusSchema = z.object({
-  status: z.enum(ORDER_STATUSES, { error: "Trạng thái không hợp lệ" }),
-});
+const cancelReason = z.string().trim().max(255, "Lý do tối đa 255 ký tự");
+
+export const updateStatusSchema = z
+  .object({
+    status: z.enum(ORDER_STATUSES, { error: "Trạng thái không hợp lệ" }),
+    /** Bắt buộc khi admin huỷ đơn — khách sẽ thấy lý do này */
+    reason: cancelReason.default(""),
+  })
+  .refine((v) => v.status !== "cancelled" || v.reason.length >= 3, { path: ["reason"], message: "Vui lòng nhập lý do huỷ đơn" });
+
+// Khách huỷ không bắt buộc gửi lý do (body rỗng cũng được)
+export const cancelMineSchema = z.object({ reason: cancelReason.default("") }).default({ reason: "" });
 
 export type CheckoutInput = z.infer<typeof checkoutSchema>;
 
-export interface OrderItem {
+export interface OrderItem extends ItemOptions {
   productId: number | null;
   name: string;
   image: string;
@@ -59,8 +71,12 @@ export interface Order {
   note: string;
   status: OrderStatus;
   subtotal: number;
+  /** Mã giảm giá đã dùng ("" = không dùng) và số tiền được giảm */
+  couponCode: string;
+  discount: number;
   shippingFee: number;
   total: number;
+  cancelReason: string;
   createdAt: Date;
   updatedAt: Date;
   items: OrderItem[];

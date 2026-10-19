@@ -77,7 +77,7 @@ export function CartDrawer() {
           ) : (
             <div className="divide-y divide-coffee-100">
               {cart.items.map((item) => (
-                <CartItemRow key={item.productId} item={item} compact />
+                <CartItemRow key={item.id} item={item} compact />
               ))}
             </div>
           )}

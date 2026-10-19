@@ -1,16 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Clock, Loader2, ShieldCheck, Trash2, Truck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { useCartActions } from "@/hooks/useCartActions";
 import { useShopSettings } from "@/context/ShopSettingsContext";
 import { formatPrice } from "@/lib/utils";
+import { couponService } from "@/services/couponService";
+import type { AppliedCoupon } from "@/types/coupon";
 import { CartItemRow } from "./CartItemRow";
 import { CheckoutModal } from "./CheckoutModal";
+import { CouponBox } from "./CouponBox";
 import { EmptyCart } from "./EmptyCart";
 
 export function CartView() {
@@ -19,12 +23,34 @@ export function CartView() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [checkoutKey, setCheckoutKey] = useState(0);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [coupon, setCoupon] = useState<AppliedCoupon | null>(null);
+  const toast = useToast();
 
   const { settings, openStatus, getShippingFee } = useShopSettings();
   // Ngoài giờ mở cửa / tạm ngưng nhận đơn → khoá nút đặt hàng (backend cũng chặn)
   const isClosed = openStatus !== null && !openStatus.isOpen;
   const shipping = getShippingFee(cart.subtotal);
-  const total = cart.subtotal + shipping;
+  const discount = coupon?.discount ?? 0;
+  const total = cart.subtotal - discount + shipping;
+
+  // Giỏ thay đổi (thêm / bớt món) → kiểm tra lại mã: số tiền giảm có thể đổi, hoặc không còn đủ điều kiện
+  const checkedSubtotal = useRef(cart.subtotal);
+  useEffect(() => {
+    if (!coupon || checkedSubtotal.current === cart.subtotal) return;
+    checkedSubtotal.current = cart.subtotal;
+    couponService
+      .check(coupon.code)
+      .then(setCoupon)
+      .catch((err: Error) => {
+        setCoupon(null);
+        toast(`Đã bỏ mã ${coupon.code}: ${err.message}`, "info");
+      });
+  }, [cart.subtotal, coupon, toast]);
+
+  const applyCoupon = (c: AppliedCoupon | null) => {
+    checkedSubtotal.current = cart.subtotal;
+    setCoupon(c);
+  };
   const remainingForFree = Math.max(0, settings.freeShippingThreshold - cart.subtotal);
   const progress = Math.min(100, (cart.subtotal / settings.freeShippingThreshold) * 100);
   const hasPurchasable = cart.subtotal > 0;
@@ -70,7 +96,7 @@ export function CartView() {
           </div>
           <div className="divide-y divide-coffee-100">
             {cart.items.map((item) => (
-              <CartItemRow key={item.productId} item={item} />
+              <CartItemRow key={item.id} item={item} />
             ))}
           </div>
         </div>
@@ -95,11 +121,19 @@ export function CartView() {
             </div>
           </div>
 
+          <CouponBox applied={coupon} onChange={applyCoupon} />
+
           <dl className="space-y-3 text-sm">
             <div className="flex justify-between">
               <dt className="text-coffee-600">Tạm tính</dt>
               <dd className="font-medium text-coffee-950">{formatPrice(cart.subtotal)}</dd>
             </div>
+            {coupon && (
+              <div className="flex justify-between">
+                <dt className="text-coffee-600">Giảm giá ({coupon.code})</dt>
+                <dd className="font-medium text-emerald-700">−{formatPrice(discount)}</dd>
+              </div>
+            )}
             <div className="flex justify-between">
               <dt className="text-coffee-600">Phí giao hàng</dt>
               <dd className="font-medium text-coffee-950">{shipping === 0 ? "Miễn phí" : formatPrice(shipping)}</dd>
@@ -150,7 +184,14 @@ export function CartView() {
       <h1 className="mt-3 font-display text-4xl font-bold tracking-tight text-coffee-950 sm:text-5xl">Giỏ hàng</h1>
       <div className="mt-8">{content}</div>
 
-      <CheckoutModal key={checkoutKey} open={checkoutOpen} total={total} onClose={() => setCheckoutOpen(false)} />
+      <CheckoutModal
+        key={checkoutKey}
+        open={checkoutOpen}
+        total={total}
+        couponCode={coupon?.code ?? ""}
+        onCouponInvalid={() => setCoupon(null)}
+        onClose={() => setCheckoutOpen(false)}
+      />
 
       <Modal
         open={confirmClear}

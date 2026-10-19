@@ -6,6 +6,9 @@ import { ChevronRight, Clock, Leaf, Star, Truck } from "lucide-react";
 import { AddToCartPanel } from "@/components/product/AddToCartPanel";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ProductImage } from "@/components/ui/ProductImage";
+import { Stars } from "@/components/ui/Stars";
+import { FavoriteButton } from "@/components/product/FavoriteButton";
+import { ProductReviews } from "@/components/review/ProductReviews";
 import { cn, formatPrice } from "@/lib/utils";
 import type { Category } from "@/types/category";
 import type { Product } from "@/types/product";
@@ -90,7 +93,17 @@ export default async function ProductDetailPage({ params }: Props) {
             {categoryName}
           </Link>
           <h1 className="mt-2 font-display text-4xl font-bold tracking-tight text-coffee-950 sm:text-5xl">{product.name}</h1>
-          <p className="mt-4 text-3xl font-bold text-coffee-900">{formatPrice(product.price)}</p>
+          {product.ratingCount > 0 && (
+            <a href="#danh-gia" className="mt-3 inline-flex w-fit items-center gap-2 text-sm text-coffee-700 hover:text-coffee-950">
+              <Stars value={product.ratingAverage ?? 0} />
+              <span className="font-semibold">{product.ratingAverage?.toFixed(1)}</span>
+              <span className="text-coffee-500 underline-offset-2 hover:underline">({product.ratingCount} đánh giá)</span>
+            </a>
+          )}
+          <p className="mt-4 text-3xl font-bold text-coffee-900">
+            {formatPrice(product.price)}
+            {product.hasOptions && <span className="ml-2 align-middle text-sm font-normal text-coffee-500">size S · M +6.000đ · L +10.000đ</span>}
+          </p>
 
           <div className="mt-3">
             {soldOut ? (
@@ -108,6 +121,7 @@ export default async function ProductDetailPage({ params }: Props) {
 
           <div className="mt-8 border-t border-coffee-100 pt-8">
             <AddToCartPanel product={product} />
+            <FavoriteButton productId={product.id} name={product.name} variant="outline" className="mt-3" />
           </div>
 
           <ul className="mt-8 grid gap-3 text-sm text-coffee-700 sm:grid-cols-3">
@@ -123,6 +137,12 @@ export default async function ProductDetailPage({ params }: Props) {
           </ul>
         </div>
       </div>
+
+      {/* Đánh giá của khách (chỉ khách đã nhận món mới viết được) */}
+      <section id="danh-gia" className="mt-20 scroll-mt-24">
+        <h2 className="mb-8 font-display text-3xl font-bold text-coffee-950">Đánh giá từ khách hàng</h2>
+        <ProductReviews productId={product.id} productName={product.name} slug={product.slug} />
+      </section>
 
       {/* Món liên quan */}
       {related.length > 0 && (

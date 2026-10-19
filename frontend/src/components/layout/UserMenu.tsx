@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, LayoutDashboard, LogOut, Receipt, ShieldCheck, User as UserIcon, UserRound } from "lucide-react";
+import { ChevronDown, Heart, LayoutDashboard, LogOut, Receipt, ShieldCheck, User as UserIcon, UserRound } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { buttonClass } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
@@ -85,6 +85,9 @@ export function UserMenu() {
             </Link>
             <Link href="/orders" onClick={close} className={itemClass}>
               <Receipt className="h-4 w-4" /> Đơn hàng của tôi
+            </Link>
+            <Link href="/favorites" onClick={close} className={itemClass}>
+              <Heart className="h-4 w-4" /> Món yêu thích
             </Link>
             {user.role === "admin" && (
               <Link href="/admin/dashboard" onClick={close} className={itemClass}>

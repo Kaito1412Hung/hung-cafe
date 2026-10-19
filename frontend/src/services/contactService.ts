@@ -7,8 +7,9 @@ export const contactService = {
     return (await api<{ message: string }>("/contact", { method: "POST", body: JSON.stringify(input) })).message;
   },
 
-  async subscribe(email: string): Promise<string> {
-    return (await api<{ message: string }>("/newsletter", { method: "POST", body: JSON.stringify({ email }) })).message;
+  /** Đăng ký mới thành công → kèm mã giảm giá đơn đầu tiên */
+  async subscribe(email: string): Promise<{ message: string; couponCode?: string }> {
+    return api<{ message: string; couponCode?: string }>("/newsletter", { method: "POST", body: JSON.stringify({ email }) });
   },
 
   /* ----- Admin ----- */

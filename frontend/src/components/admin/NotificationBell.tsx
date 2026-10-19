@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, BellOff, CheckCheck, KeyRound, MessageCircle, PackageCheck, PackageX, Receipt, UserPlus, XCircle } from "lucide-react";
+import { Bell, BellOff, CheckCheck, KeyRound, MessageCircle, PackageCheck, PackageX, Receipt, Star, UserPlus, XCircle } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
 import { notificationService } from "@/services/notificationService";
@@ -19,6 +19,7 @@ const TYPE_STYLE: Record<NotificationType, { icon: typeof Bell; color: string }>
   password_reset: { icon: KeyRound, color: "bg-sky-50 text-sky-600" },
   contact_message: { icon: MessageCircle, color: "bg-pink-50 text-pink-600" },
   order_status: { icon: PackageCheck, color: "bg-emerald-50 text-emerald-600" },
+  new_review: { icon: Star, color: "bg-amber-50 text-amber-500" },
 };
 
 const rtf = new Intl.RelativeTimeFormat("vi", { numeric: "auto" });

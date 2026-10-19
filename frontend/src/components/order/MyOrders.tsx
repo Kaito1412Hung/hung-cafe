@@ -2,17 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CircleCheckBig, Loader2, MapPin, Phone, RotateCcw } from "lucide-react";
+import { CircleCheckBig, Loader2, MapPin, Phone, RotateCcw, Star } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { EmptyCart } from "@/components/cart/EmptyCart";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
-import { formatDateTime, formatOrderCode } from "@/lib/orders";
+import { CUSTOMER_CANCEL_REASONS, formatDateTime, formatOrderCode } from "@/lib/orders";
+import { ReviewModal } from "@/components/review/ReviewModal";
+import { reviewService } from "@/services/reviewService";
 import { cn } from "@/lib/utils";
 import { orderService } from "@/services/orderService";
 import type { Order } from "@/types/order";
+import { CancelReasonPicker } from "./CancelReasonPicker";
 import { OrderItemsList } from "./OrderItemsList";
 import { OrderProgress } from "./OrderProgress";
 import { OrderStatusBadge } from "./OrderStatusBadge";
@@ -26,6 +29,10 @@ export function MyOrders() {
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [cancelling, setCancelling] = useState<Order | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  // Món đã đánh giá: productId → { số sao, nhận xét }
+  const [myRatings, setMyRatings] = useState<Map<number, { rating: number; comment: string }>>(new Map());
+  const [reviewing, setReviewing] = useState<{ id: number; name: string } | null>(null);
   const [reordering, setReordering] = useState<number | null>(null);
   // Đơn được nhắc tới trong link thông báo (/orders#don-12) → làm nổi bật
   const [focusId, setFocusId] = useState<number | null>(null);
@@ -65,6 +72,10 @@ export function MyOrders() {
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
+    reviewService
+      .getMine()
+      .then((list) => !cancelled && setMyRatings(new Map(list.map((r) => [r.productId, { rating: r.rating, comment: r.comment }]))))
+      .catch(() => {});
     orderService
       .getMine()
       .then((data) => !cancelled && setOrders(data))
@@ -82,7 +93,7 @@ export function MyOrders() {
     if (!cancelling) return;
     setSubmitting(true);
     try {
-      const updated = await orderService.cancelMine(cancelling.id);
+      const updated = await orderService.cancelMine(cancelling.id, cancelReason);
       setOrders((prev) => prev?.map((o) => (o.id === updated.id ? updated : o)) ?? null);
       toast(`Đã huỷ đơn ${formatOrderCode(updated.id)}`, "info");
       setCancelling(null);
@@ -144,10 +155,51 @@ export function MyOrders() {
               </div>
             </div>
 
+            {order.status === "cancelled" && order.cancelReason && (
+              <p className="mt-5 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-800 ring-1 ring-red-600/15">
+                <strong>Lý do huỷ:</strong> {order.cancelReason}
+              </p>
+            )}
+
+            {/* Đơn đã nhận → mời đánh giá từng món (mỗi món 1 lần, bấm lại để sửa) */}
+            {order.status === "completed" && (
+              <div className="mt-5 rounded-2xl bg-amber-50/60 p-4 ring-1 ring-amber-600/10">
+                <p className="text-sm font-semibold text-coffee-900">Đánh giá món đã nhận</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {order.items
+                    .filter((item, i, arr) => item.productId && arr.findIndex((x) => x.productId === item.productId) === i)
+                    .map((item) => {
+                      const rated = myRatings.get(item.productId!);
+                      return (
+                        <button
+                          key={item.productId}
+                          onClick={() => setReviewing({ id: item.productId!, name: item.name })}
+                          className={cn(
+                            "inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium ring-1 transition",
+                            rated ? "bg-white text-coffee-700 ring-coffee-200 hover:bg-coffee-50" : "bg-coffee-900 text-cream ring-coffee-900 hover:bg-coffee-700",
+                          )}
+                        >
+                          <Star className={cn("h-4 w-4", rated ? "fill-amber-400 text-amber-400" : "")} />
+                          {item.name}
+                          {rated ? <span className="text-coffee-500">· {rated.rating}★ (sửa)</span> : ""}
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+
             {(order.status === "pending" || order.status === "completed" || order.status === "cancelled") && (
               <div className="mt-5 flex justify-end gap-2 border-t border-coffee-100 pt-4">
                 {order.status === "pending" ? (
-                  <Button variant="outline" size="sm" onClick={() => setCancelling(order)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setCancelReason("");
+                      setCancelling(order);
+                    }}
+                  >
                     Huỷ đơn
                   </Button>
                 ) : (
@@ -178,6 +230,14 @@ export function MyOrders() {
 
       <div className="mt-8">{content}</div>
 
+      <ReviewModal
+        key={reviewing?.id ?? 0}
+        product={reviewing}
+        initial={reviewing ? (myRatings.get(reviewing.id) ?? null) : null}
+        onClose={() => setReviewing(null)}
+        onSaved={(r) => setMyRatings((prev) => new Map(prev).set(r.productId, { rating: r.rating, comment: r.comment }))}
+      />
+
       <Modal
         open={cancelling !== null}
         onClose={() => setCancelling(null)}
@@ -186,7 +246,7 @@ export function MyOrders() {
         footer={
           <>
             <Button variant="outline" onClick={() => setCancelling(null)} disabled={submitting}>
-              Không
+              Không huỷ
             </Button>
             <Button variant="danger" onClick={handleCancel} loading={submitting}>
               Huỷ đơn
@@ -194,7 +254,10 @@ export function MyOrders() {
           </>
         }
       >
-        <p className="text-sm text-coffee-700">Bạn chắc chắn muốn huỷ đơn {cancelling && formatOrderCode(cancelling.id)}?</p>
+        <p className="mb-4 text-sm text-coffee-700">
+          Bạn chắc chắn muốn huỷ đơn {cancelling && formatOrderCode(cancelling.id)}? Cho quán biết lý do nhé (không bắt buộc):
+        </p>
+        <CancelReasonPicker key={cancelling?.id} reasons={CUSTOMER_CANCEL_REASONS} onChange={setCancelReason} name="customer-cancel" />
       </Modal>
     </section>
   );

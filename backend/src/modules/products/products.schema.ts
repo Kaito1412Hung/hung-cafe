@@ -15,6 +15,8 @@ const fields = {
   stock: z.number({ error: "Tồn kho phải là số" }).int("Tồn kho là số nguyên").min(0, "Tồn kho phải ≥ 0"),
   isAvailable: z.boolean(),
   isBestSeller: z.boolean(),
+  /** Có cho khách chọn size / đường / đá không (bánh thì không) */
+  hasOptions: z.boolean(),
 };
 
 /** POST / PUT: thiếu trường không bắt buộc thì dùng giá trị mặc định */
@@ -24,6 +26,7 @@ export const productSchema = z.object({
   image: fields.image.default(""),
   isAvailable: fields.isAvailable.default(true),
   isBestSeller: fields.isBestSeller.default(false),
+  hasOptions: fields.hasOptions.default(true),
 });
 
 /**
@@ -42,6 +45,9 @@ export type ProductPatch = z.infer<typeof productPatchSchema>;
 export interface Product extends ProductInput {
   id: number;
   slug: string;
+  /** Điểm đánh giá trung bình (null = chưa có đánh giá) */
+  ratingAverage: number | null;
+  ratingCount: number;
   createdAt: Date;
   updatedAt: Date;
 }

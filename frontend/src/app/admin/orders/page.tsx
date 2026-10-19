@@ -71,9 +71,9 @@ function AdminOrders() {
   const currentPage = Math.min(page, totalPages);
   const paginated = orders.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  const handleChangeStatus = async (order: Order, next: OrderStatus) => {
+  const handleChangeStatus = async (order: Order, next: OrderStatus, reason = "") => {
     try {
-      const updated = await orderService.updateStatus(order.id, next);
+      const updated = await orderService.updateStatus(order.id, next, reason);
       // Cập nhật tại chỗ: thay đơn trong danh sách + chỉnh lại số đếm
       setResult((prev) => {
         if (!prev) return prev;

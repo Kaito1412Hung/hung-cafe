@@ -8,6 +8,7 @@ export type NotificationType =
   | "new_customer"
   | "password_reset"
   | "contact_message"
+  | "new_review"
   // Gửi cho KHÁCH khi đơn của họ đổi trạng thái
   | "order_status";
 

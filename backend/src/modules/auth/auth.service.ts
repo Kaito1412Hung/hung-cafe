@@ -3,6 +3,7 @@ import { pool } from "../../db/pool";
 import { AppError } from "../../utils/AppError";
 import type { LoginInput, RegisterInput, Role, UpdateProfileInput } from "./auth.schema";
 import { notifyAdmins } from "../notifications/notifications.service";
+import { loginGuard } from "../../middlewares/rateLimit";
 
 export interface PublicUser {
   id: number;
@@ -66,7 +67,10 @@ export async function register(input: RegisterInput): Promise<AuthResult> {
   return { user: rows[0], tokenVersion: 0 };
 }
 
-export async function login(input: LoginInput): Promise<AuthResult> {
+export async function login(input: LoginInput, ip: string): Promise<AuthResult> {
+  // Sai quá nhiều lần → tạm khoá (chống dò mật khẩu)
+  loginGuard.check(input.email, ip);
+
   const { rows } = await pool.query<PublicUser & { passwordHash: string; tokenVersion: number }>(
     `SELECT ${PUBLIC_COLUMNS}, password_hash AS "passwordHash", token_version AS "tokenVersion" FROM users WHERE email = $1`,
     [input.email],
@@ -75,7 +79,12 @@ export async function login(input: LoginInput): Promise<AuthResult> {
 
   // Báo chung một lỗi để không lộ email nào đã tồn tại
   const valid = row && (await bcrypt.compare(input.password, row.passwordHash));
-  if (!valid) throw new AppError(401, "Email hoặc mật khẩu không đúng");
+  if (!valid) {
+    const left = loginGuard.fail(input.email, ip);
+    const warning = left <= 0 ? " Bạn đã hết lượt thử, vui lòng đợi 15 phút." : left <= 2 ? ` Bạn còn ${left} lần thử.` : "";
+    throw new AppError(401, `Email hoặc mật khẩu không đúng.${warning}`);
+  }
+  loginGuard.success(input.email);
 
   const { passwordHash: _hash, tokenVersion, ...user } = row;
   return { user, tokenVersion };

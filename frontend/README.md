@@ -18,9 +18,11 @@ npm run dev                  # http://localhost:3000
 | ----------------- | ------------ | ---------------------------------------------------------- |
 | `/`               | Mọi người    | Landing page: số liệu thật, món bán chạy, đăng ký nhận tin |
 | `/menu`           | Mọi người    | Thực đơn: lọc danh mục, tìm kiếm, sắp xếp                  |
-| `/menu/[slug]`    | Mọi người    | Chi tiết món (render ở server, SEO), chọn số lượng, món liên quan |
-| `/cart`           | Đã đăng nhập | Giỏ hàng + form đặt hàng (COD)                             |
-| `/orders`         | Đã đăng nhập | Đơn hàng của tôi: theo dõi trạng thái, huỷ đơn chờ xác nhận, mua lại |
+| `/menu/[slug]`    | Mọi người    | Chi tiết món (render ở server, SEO): chọn size / đường / đá / ghi chú, đánh giá của khách, thả tim, món liên quan |
+| `/cart`           | Đã đăng nhập | Giỏ hàng + mã giảm giá + form đặt hàng (COD)               |
+| `/favorites`      | Đã đăng nhập | Món yêu thích (đã thả tim)                                 |
+| `/chinh-sach/[slug]` | Mọi người | Chính sách giao hàng / đổi trả / bảo mật (`giao-hang`, `doi-tra`, `bao-mat`) |
+| `/orders`         | Đã đăng nhập | Đơn hàng của tôi: theo dõi trạng thái, huỷ đơn (kèm lý do), mua lại, đánh giá món đã nhận |
 | `/contact`        | Mọi người    | Form liên hệ + bản đồ, giờ mở cửa                          |
 | `/account`        | Đã đăng nhập | Tài khoản của tôi: ảnh đại diện, tên hiển thị, hồ sơ, địa chỉ, mật khẩu, đăng xuất mọi thiết bị, xoá tài khoản |
 | `/login`          | Mọi người    | Đăng nhập (admin → trang quản lý, khách → trang chủ)       |
@@ -28,13 +30,16 @@ npm run dev                  # http://localhost:3000
 | `/forgot-password`| Mọi người    | Quên mật khẩu: gửi yêu cầu cho quán                        |
 | `/admin/products` | **Admin**    | CRUD sản phẩm, upload ảnh từ máy                          |
 | `/admin/categories`| **Admin**   | Quản lý danh mục                                           |
-| `/admin/dashboard`| **Admin**    | Tổng quan: doanh thu, biểu đồ theo ngày, món bán chạy, sắp hết hàng |
+| `/admin/dashboard`| **Admin**    | Tổng quan: doanh thu, biểu đồ theo ngày, món bán chạy, sắp hết hàng, **xuất Excel** |
 | `/admin/orders`   | **Admin**    | Quản lý đơn: lọc, tìm kiếm, xác nhận → giao → hoàn thành / huỷ |
 | `/admin/customers`| **Admin**    | Khách hàng: lịch sử mua, tổng chi tiêu, phân quyền, xoá   |
 | `/admin/contact`  | **Admin**    | Hộp thư liên hệ + danh sách đăng ký nhận tin (xuất CSV)   |
+| `/admin/coupons`  | **Admin**    | Mã giảm giá: tạo / sửa / bật tắt / xoá, xem số lượt đã dùng |
 | `/admin/orders/[id]/invoice` | **Admin** | Hoá đơn in được / lưu PDF                          |
 | `/admin/settings` | **Admin**    | Thông tin quán, giờ mở cửa & nhận đơn, mạng xã hội, phí giao hàng |
 | `/admin/profile`  | **Admin**    | Hồ sơ của admin (giống `/account`, không có xoá tài khoản) |
+
+SEO: `/sitemap.xml` (tự liệt kê các món, tạo lại mỗi giờ) và `/robots.txt` (chặn trang cá nhân / quản trị). Đặt `SITE_URL` trong `.env.local` khi deploy.
 
 ## Cấu trúc thư mục
 
@@ -79,5 +84,6 @@ Khi deploy chỉ cần đặt biến `BACKEND_URL` trỏ tới địa chỉ back
 6. ✅ **Tài khoản** — avatar, tên hiển thị, hồ sơ, địa chỉ tự điền khi đặt hàng, bảo mật
 7. ✅ **Hoàn thiện cơ bản** — trang chi tiết món, quản lý danh mục, upload ảnh, quên mật khẩu, trang 404/lỗi
 8. ✅ **Hoàn thiện cơ bản (2)** — form liên hệ, nhận tin, mạng xã hội, số liệu thật, favicon + ảnh chia sẻ, mua lại, giờ mở cửa chặn đặt hàng, thông báo cho khách, in hoá đơn
-9. ⬜ **Mốc 3** — Thanh toán online, quên mật khẩu qua email, ảnh lưu trên Cloudinary
-10. ⬜ **Mốc 4** — Test tự động, deploy
+9. ✅ **Hoàn thiện cơ bản (3)** — tuỳ chọn size / đường / đá, chống dò mật khẩu, trang chính sách, đánh giá món thật, mã giảm giá, sitemap, huỷ đơn kèm lý do, món yêu thích, xuất Excel
+10. ⬜ **Mốc 3** — Thanh toán online, quên mật khẩu qua email, ảnh lưu trên Cloudinary
+11. ⬜ **Mốc 4** — Test tự động, deploy

@@ -1,5 +1,6 @@
 import { ProductImage } from "@/components/ui/ProductImage";
 import { formatPrice } from "@/lib/utils";
+import { describeOptions } from "@/lib/options";
 import type { Order } from "@/types/order";
 
 /** Danh sách món + tổng tiền của một đơn (dùng cho cả khách và admin) */
@@ -12,6 +13,8 @@ export function OrderItemsList({ order }: { order: Order }) {
             <ProductImage src={item.image} alt={item.name} className="h-12 w-12 shrink-0 rounded-xl" />
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium text-coffee-950">{item.name}</p>
+              {describeOptions(item) && <p className="text-xs text-coffee-600">{describeOptions(item)}</p>}
+              {item.note && <p className="truncate text-xs italic text-coffee-500">Ghi chú: {item.note}</p>}
               <p className="text-sm text-coffee-500">
                 {formatPrice(item.unitPrice)} × {item.quantity}
               </p>
@@ -25,6 +28,12 @@ export function OrderItemsList({ order }: { order: Order }) {
           <dt className="text-coffee-600">Tạm tính</dt>
           <dd className="text-coffee-950">{formatPrice(order.subtotal)}</dd>
         </div>
+        {order.discount > 0 && (
+          <div className="flex justify-between">
+            <dt className="text-coffee-600">Giảm giá ({order.couponCode})</dt>
+            <dd className="text-emerald-700">−{formatPrice(order.discount)}</dd>
+          </div>
+        )}
         <div className="flex justify-between">
           <dt className="text-coffee-600">Phí giao hàng</dt>
           <dd className="text-coffee-950">{order.shippingFee === 0 ? "Miễn phí" : formatPrice(order.shippingFee)}</dd>

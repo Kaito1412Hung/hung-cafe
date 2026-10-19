@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { AppError } from "../../utils/AppError";
 import { AUTH_COOKIE, authCookieOptions, signToken } from "../../utils/jwt";
 import * as authService from "./auth.service";
+import { clientIp } from "../../middlewares/rateLimit";
 
 const { maxAge: _maxAge, ...clearCookieOptions } = authCookieOptions;
 
@@ -16,7 +17,7 @@ export async function register(req: Request, res: Response) {
 }
 
 export async function login(req: Request, res: Response) {
-  const { user, tokenVersion } = await authService.login(req.body);
+  const { user, tokenVersion } = await authService.login(req.body, clientIp(req));
   setAuthCookie(res, user.id, tokenVersion);
   res.json({ user });
 }

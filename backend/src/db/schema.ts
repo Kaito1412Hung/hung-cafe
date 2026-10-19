@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS notifications (
 -- Danh sách loại thông báo (xoá rồi tạo lại để thêm loại mới cho DB cũ)
 ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check;
 ALTER TABLE notifications ADD CONSTRAINT notifications_type_check
-  CHECK (type IN ('new_order', 'order_cancelled', 'low_stock', 'new_customer', 'password_reset', 'order_status', 'contact_message'));
+  CHECK (type IN ('new_order', 'order_cancelled', 'low_stock', 'new_customer', 'password_reset', 'order_status', 'contact_message', 'new_review'));
 
 -- Tin nhắn khách gửi từ trang Liên hệ (khách vãng lai cũng gửi được → user_id có thể NULL)
 CREATE TABLE IF NOT EXISTS contact_messages (
@@ -142,6 +142,77 @@ CREATE TABLE IF NOT EXISTS newsletter_subscribers (
   id         SERIAL PRIMARY KEY,
   email      VARCHAR(255) NOT NULL UNIQUE,
   created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+/* ---------- Tuỳ chọn món: size / đường / đá / ghi chú ---------- */
+-- Món nào có chọn size/đường/đá (bánh thì không). Lần đầu thêm cột: tắt sẵn cho danh mục bánh
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'has_options') THEN
+    ALTER TABLE products ADD COLUMN has_options BOOLEAN NOT NULL DEFAULT TRUE;
+    UPDATE products SET has_options = FALSE WHERE category = 'cake';
+  END IF;
+END $$;
+
+-- Cùng 1 món nhưng khác size / đường / đá / ghi chú → là 2 dòng khác nhau trong giỏ
+ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS size  VARCHAR(1)   NOT NULL DEFAULT '';
+ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS sugar VARCHAR(4)   NOT NULL DEFAULT '';
+ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS ice   VARCHAR(10)  NOT NULL DEFAULT '';
+ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS note  VARCHAR(100) NOT NULL DEFAULT '';
+ALTER TABLE cart_items DROP CONSTRAINT IF EXISTS cart_items_user_id_product_id_key;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cart_items_line ON cart_items(user_id, product_id, size, sugar, ice, note);
+
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS size  VARCHAR(1)   NOT NULL DEFAULT '';
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS sugar VARCHAR(4)   NOT NULL DEFAULT '';
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS ice   VARCHAR(10)  NOT NULL DEFAULT '';
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS note  VARCHAR(100) NOT NULL DEFAULT '';
+
+/* ---------- Mã giảm giá ---------- */
+CREATE TABLE IF NOT EXISTS coupons (
+  id               SERIAL PRIMARY KEY,
+  code             VARCHAR(30)  NOT NULL UNIQUE,  -- luôn lưu chữ IN HOA
+  description      VARCHAR(150) NOT NULL DEFAULT '',
+  type             VARCHAR(10)  NOT NULL CHECK (type IN ('percent', 'fixed')),
+  value            INTEGER      NOT NULL CHECK (value > 0),  -- % hoặc số tiền
+  max_discount     INTEGER      CHECK (max_discount > 0),    -- giảm tối đa (cho loại %), NULL = không giới hạn
+  min_order        INTEGER      NOT NULL DEFAULT 0 CHECK (min_order >= 0),
+  usage_limit      INTEGER      CHECK (usage_limit > 0),     -- tổng số lượt, NULL = không giới hạn
+  used_count       INTEGER      NOT NULL DEFAULT 0 CHECK (used_count >= 0),
+  first_order_only BOOLEAN      NOT NULL DEFAULT FALSE,
+  starts_at        TIMESTAMPTZ,
+  expires_at       TIMESTAMPTZ,
+  is_active        BOOLEAN      NOT NULL DEFAULT TRUE,
+  created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+INSERT INTO coupons (code, description, type, value, max_discount, min_order, first_order_only) VALUES
+  ('CHAOBANMOI', 'Giảm 20% cho đơn đầu tiên (tối đa 50.000đ)', 'percent', 20, 50000, 0, TRUE),
+  ('GIAM10', 'Giảm 10% cho đơn từ 100.000đ (tối đa 30.000đ)', 'percent', 10, 30000, 100000, FALSE),
+  ('GIAM15K', 'Giảm 15.000đ cho đơn từ 150.000đ', 'fixed', 15000, NULL, 150000, FALSE)
+ON CONFLICT (code) DO NOTHING;
+
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_code   VARCHAR(30)  NOT NULL DEFAULT '';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount      INTEGER      NOT NULL DEFAULT 0 CHECK (discount >= 0);
+-- Lý do huỷ đơn (admin chọn / khách chọn) để khách biết vì sao
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancel_reason VARCHAR(255) NOT NULL DEFAULT '';
+
+/* ---------- Đánh giá món (chỉ khách đã nhận món mới được đánh giá) ---------- */
+CREATE TABLE IF NOT EXISTS reviews (
+  id         SERIAL PRIMARY KEY,
+  product_id INTEGER      NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  user_id    INTEGER      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  rating     SMALLINT     NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  comment    VARCHAR(500) NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  UNIQUE (product_id, user_id)  -- mỗi người 1 đánh giá / món (đánh giá lại = sửa)
+);
+CREATE INDEX IF NOT EXISTS idx_reviews_product ON reviews(product_id, created_at DESC);
+
+/* ---------- Món yêu thích ---------- */
+CREATE TABLE IF NOT EXISTS favorites (
+  user_id    INTEGER     NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  product_id INTEGER     NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, product_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_contact_messages_created ON contact_messages(created_at DESC);

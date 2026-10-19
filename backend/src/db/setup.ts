@@ -43,7 +43,7 @@ async function main() {
   }
 
   await pool.query(SCHEMA_SQL);
-  console.log("✅ Đã tạo bảng users, products, cart_items, orders, order_items, settings, notifications, categories, contact_messages, newsletter_subscribers");
+  console.log("✅ Đã tạo bảng users, products, cart_items, orders, order_items, settings, notifications, categories, contact_messages, newsletter_subscribers, coupons, reviews, favorites");
 
   await seed();
   const filled = await backfillSlugs();

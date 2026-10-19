@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import Image from "next/image";
-import { Send } from "lucide-react";
+import { Copy, Send } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { unsplash } from "@/lib/utils";
@@ -12,6 +12,8 @@ export function Newsletter() {
   const toast = useToast();
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
+  // Đăng ký thành công → hiện mã giảm giá (chưa có gửi email nên đưa mã luôn tại đây)
+  const [couponCode, setCouponCode] = useState<string | null>(null);
 
   // Lưu email vào database (admin xem ở Quản lý → Liên hệ → Đăng ký nhận tin)
   const handleSubmit = async (e: FormEvent) => {
@@ -22,7 +24,9 @@ export function Newsletter() {
     }
     setSending(true);
     try {
-      toast(await contactService.subscribe(email));
+      const res = await contactService.subscribe(email);
+      toast(res.message);
+      if (res.couponCode) setCouponCode(res.couponCode);
       setEmail("");
     } catch (err) {
       toast((err as Error).message, "error");
@@ -50,6 +54,19 @@ export function Newsletter() {
               Đăng ký <Send className="h-4 w-4" />
             </Button>
           </form>
+          {couponCode && (
+            <div className="mx-auto mt-6 max-w-md rounded-2xl border border-dashed border-coffee-400 bg-coffee-950/60 px-5 py-4 text-cream">
+              <p className="text-sm text-coffee-200">Mã giảm 20% cho đơn đầu tiên của bạn:</p>
+              <button
+                onClick={() => navigator.clipboard.writeText(couponCode).then(() => toast(`Đã chép mã ${couponCode}`, "info"))}
+                className="mt-2 inline-flex cursor-pointer items-center gap-2 font-mono text-2xl font-bold tracking-widest hover:text-coffee-200"
+                title="Chép mã"
+              >
+                {couponCode} <Copy className="h-5 w-5" />
+              </button>
+              <p className="mt-1 text-xs text-coffee-300">Nhập mã ở bước giỏ hàng (tối đa 50.000đ).</p>
+            </div>
+          )}
         </div>
       </div>
     </section>

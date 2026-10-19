@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../../middlewares/auth";
 import { validateBody } from "../../middlewares/validate";
+import { rateLimit } from "../../middlewares/rateLimit";
 import * as controller from "./auth.controller";
 import {
   avatarSchema,
@@ -14,11 +15,15 @@ import {
 
 export const authRouter = Router();
 
-authRouter.post("/register", validateBody(registerSchema), controller.register);
+// Chống tạo tài khoản ảo hàng loạt / spam yêu cầu quên mật khẩu (tính theo IP)
+const registerLimit = rateLimit({ windowMs: 60 * 60 * 1000, max: 5, message: "Thiết bị này đã tạo quá nhiều tài khoản." });
+const forgotLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: "Bạn đã gửi quá nhiều yêu cầu." });
+
+authRouter.post("/register", registerLimit, validateBody(registerSchema), controller.register);
 authRouter.post("/login", validateBody(loginSchema), controller.login);
 authRouter.post("/logout", controller.logout);
 authRouter.post("/logout-all", requireAuth, controller.logoutAll);
-authRouter.post("/forgot-password", validateBody(forgotPasswordSchema), controller.forgotPassword);
+authRouter.post("/forgot-password", forgotLimit, validateBody(forgotPasswordSchema), controller.forgotPassword);
 
 // Hồ sơ của chính mình
 authRouter.get("/me", requireAuth, controller.me);

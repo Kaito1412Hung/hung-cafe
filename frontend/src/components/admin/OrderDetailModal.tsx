@@ -7,18 +7,20 @@ import { Button } from "@/components/ui/Button";
 import { OrderItemsList } from "@/components/order/OrderItemsList";
 import { OrderProgress } from "@/components/order/OrderProgress";
 import { OrderStatusBadge } from "@/components/order/OrderStatusBadge";
-import { CANCELLABLE, NEXT_STEP, formatDateTime, formatOrderCode } from "@/lib/orders";
+import { CancelReasonPicker } from "@/components/order/CancelReasonPicker";
+import { ADMIN_CANCEL_REASONS, CANCELLABLE, NEXT_STEP, formatDateTime, formatOrderCode } from "@/lib/orders";
 import type { Order, OrderStatus } from "@/types/order";
 
 interface OrderDetailModalProps {
   order: Order | null;
   onClose: () => void;
-  onChangeStatus: (order: Order, status: OrderStatus) => Promise<void>;
+  onChangeStatus: (order: Order, status: OrderStatus, reason?: string) => Promise<void>;
 }
 
 export function OrderDetailModal({ order, onClose, onChangeStatus }: OrderDetailModalProps) {
   const [busy, setBusy] = useState<OrderStatus | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [reason, setReason] = useState("");
 
   if (!order) return null;
 
@@ -28,8 +30,9 @@ export function OrderDetailModal({ order, onClose, onChangeStatus }: OrderDetail
   const change = async (status: OrderStatus) => {
     setBusy(status);
     try {
-      await onChangeStatus(order, status);
+      await onChangeStatus(order, status, status === "cancelled" ? reason : undefined);
       setConfirmCancel(false);
+      setReason("");
     } finally {
       setBusy(null);
     }
@@ -37,6 +40,7 @@ export function OrderDetailModal({ order, onClose, onChangeStatus }: OrderDetail
 
   const close = () => {
     setConfirmCancel(false);
+    setReason("");
     onClose();
   };
 
@@ -50,12 +54,12 @@ export function OrderDetailModal({ order, onClose, onChangeStatus }: OrderDetail
       footer={
         confirmCancel ? (
           <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-medium text-red-700">Huỷ đơn này? Tồn kho sẽ được hoàn lại.</p>
+            <p className="text-sm font-medium text-red-700">Khách sẽ nhận được thông báo kèm lý do. Tồn kho được hoàn lại.</p>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setConfirmCancel(false)} disabled={busy !== null}>
                 Không
               </Button>
-              <Button variant="danger" onClick={() => change("cancelled")} loading={busy === "cancelled"}>
+              <Button variant="danger" onClick={() => change("cancelled")} loading={busy === "cancelled"} disabled={reason.length < 3}>
                 Xác nhận huỷ
               </Button>
             </div>
@@ -81,6 +85,17 @@ export function OrderDetailModal({ order, onClose, onChangeStatus }: OrderDetail
       }
     >
       <div className="space-y-6">
+        {confirmCancel && (
+          <div className="rounded-2xl bg-red-50/60 p-4 ring-1 ring-red-200">
+            <p className="mb-3 text-sm font-semibold text-red-800">Lý do huỷ đơn (khách sẽ thấy)</p>
+            <CancelReasonPicker reasons={ADMIN_CANCEL_REASONS} onChange={setReason} name={`cancel-${order.id}`} />
+          </div>
+        )}
+        {order.cancelReason && (
+          <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-800 ring-1 ring-red-600/15">
+            <strong>Lý do huỷ:</strong> {order.cancelReason}
+          </p>
+        )}
         <div className="flex items-center justify-between gap-3">
           <span className="text-sm text-coffee-600">Trạng thái hiện tại</span>
           <OrderStatusBadge status={order.status} />

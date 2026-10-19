@@ -124,6 +124,15 @@ export function AuthForm({ mode }: { mode: Mode }) {
         <Button type="submit" size="lg" loading={submitting} className="w-full rounded-xl">
           {isLogin ? "Đăng nhập" : "Đăng ký"}
         </Button>
+        {!isLogin && (
+          <p className="text-center text-xs text-coffee-500">
+            Bằng việc đăng ký, bạn đồng ý với{" "}
+            <Link href="/chinh-sach/bao-mat" target="_blank" className="underline hover:text-coffee-800">
+              Chính sách bảo mật thông tin
+            </Link>{" "}
+            của quán.
+          </p>
+        )}
       </form>
 
       <p className="mt-8 text-center text-sm text-coffee-600">

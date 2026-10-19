@@ -23,6 +23,7 @@ interface FormValues {
   image: string;
   isAvailable: boolean;
   isBestSeller: boolean;
+  hasOptions: boolean;
 }
 type FormErrors = Partial<Record<keyof FormValues, string>>;
 
@@ -35,6 +36,8 @@ const emptyValues = (category: string): FormValues => ({
   image: "",
   isAvailable: true,
   isBestSeller: false,
+  // Đồ uống mặc định có chọn size / đường / đá, bánh thì không
+  hasOptions: category !== "cake",
 });
 
 function toFormValues(p: Product): FormValues {
@@ -47,6 +50,7 @@ function toFormValues(p: Product): FormValues {
     image: p.image,
     isAvailable: p.isAvailable,
     isBestSeller: p.isBestSeller,
+    hasOptions: p.hasOptions,
   };
 }
 
@@ -220,7 +224,7 @@ export function ProductFormModal({ open, product, onClose, onSubmit }: ProductFo
           <Textarea id="description" value={values.description} onChange={(e) => set("description", e.target.value)} placeholder="Mô tả ngắn về hương vị, nguyên liệu..." invalid={!!errors.description} />
         </Field>
 
-        <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+        <div className="grid gap-3 sm:col-span-2 sm:grid-cols-3">
           <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-coffee-100 p-4">
             <div>
               <p className="text-sm font-medium text-coffee-900">Đang bán</p>
@@ -234,6 +238,13 @@ export function ProductFormModal({ open, product, onClose, onSubmit }: ProductFo
               <p className="text-xs text-coffee-500">Nổi bật ở trang chủ</p>
             </div>
             <Switch checked={values.isBestSeller} onChange={(v) => set("isBestSeller", v)} label="Bán chạy" />
+          </label>
+          <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-coffee-100 p-4">
+            <div>
+              <p className="text-sm font-medium text-coffee-900">Chọn size / đường / đá</p>
+              <p className="text-xs text-coffee-500">Tắt cho bánh, món đóng gói</p>
+            </div>
+            <Switch checked={values.hasOptions} onChange={(v) => set("hasOptions", v)} label="Chọn size / đường / đá" />
           </label>
         </div>
       </form>

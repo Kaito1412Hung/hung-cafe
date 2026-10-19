@@ -12,5 +12,5 @@ cartRouter.use(requireAuth);
 cartRouter.get("/", controller.get);
 cartRouter.delete("/", controller.clear);
 cartRouter.post("/items", validateBody(addItemSchema), controller.addItem);
-cartRouter.patch("/items/:productId", validateBody(updateItemSchema), controller.updateItem);
-cartRouter.delete("/items/:productId", controller.removeItem);
+cartRouter.patch("/items/:lineId", validateBody(updateItemSchema), controller.updateItem);
+cartRouter.delete("/items/:lineId", controller.removeItem);

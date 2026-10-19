@@ -3,17 +3,21 @@ import { pool } from "../../db/pool";
 import { calcShippingFee, getOpenStatus, getShopSettings } from "../settings/settings.service";
 import { AppError } from "../../utils/AppError";
 import { LOW_STOCK_THRESHOLD, cleanup as cleanupNotifications, notifyAdmins, notifyUser } from "../notifications/notifications.service";
+import { evaluate as evaluateCoupon } from "../coupons/coupons.service";
+import { sizeExtra } from "../cart/options";
 import { STATUS_LABELS, STATUS_TRANSITIONS, type CheckoutInput, type Order, type OrderStatus } from "./orders.schema";
 
 // Lấy đơn kèm danh sách món (json_agg gom các dòng order_items thành mảng JSON)
 const ORDER_SELECT = `
   SELECT o.id, o.user_id AS "userId", u.email AS "userEmail",
          o.customer_name AS "customerName", o.phone, o.address, o.note, o.status,
-         o.subtotal, o.shipping_fee AS "shippingFee", o.total,
+         o.subtotal, o.coupon_code AS "couponCode", o.discount, o.shipping_fee AS "shippingFee", o.total,
+         o.cancel_reason AS "cancelReason",
          o.created_at AS "createdAt", o.updated_at AS "updatedAt",
          COALESCE(
            json_agg(json_build_object(
              'productId', oi.product_id, 'name', oi.product_name, 'image', oi.product_image,
+             'size', oi.size, 'sugar', oi.sugar, 'ice', oi.ice, 'note', oi.note,
              'unitPrice', oi.unit_price, 'quantity', oi.quantity, 'lineTotal', oi.line_total
            ) ORDER BY oi.id) FILTER (WHERE oi.id IS NOT NULL),
            '[]'
@@ -60,54 +64,82 @@ export async function checkout(userId: number, input: CheckoutInput): Promise<Or
       price: number;
       stock: number;
       isAvailable: boolean;
+      size: string;
+      sugar: string;
+      ice: string;
+      note: string;
       quantity: number;
     }>(
-      `SELECT p.id AS "productId", p.name, p.image, p.price, p.stock, p.is_available AS "isAvailable", c.quantity
+      `SELECT p.id AS "productId", p.name, p.image, p.price, p.stock, p.is_available AS "isAvailable",
+              c.size, c.sugar, c.ice, c.note, c.quantity
        FROM cart_items c JOIN products p ON p.id = c.product_id
        WHERE c.user_id = $1
-       ORDER BY c.created_at
+       ORDER BY c.created_at, c.id
        FOR UPDATE OF p`,
       [userId],
     );
 
     if (items.length === 0) throw new AppError(400, "Giỏ hàng đang trống");
 
+    // Cùng 1 món có thể nằm ở nhiều dòng (khác size) → cộng lại để so với tồn kho
+    const perProduct = new Map<number, { name: string; stock: number; quantity: number }>();
     for (const item of items) {
       if (!item.isAvailable || item.stock === 0) {
         throw new AppError(400, `"${item.name}" đã tạm hết, vui lòng xoá khỏi giỏ trước khi đặt`);
       }
-      if (item.quantity > item.stock) {
-        throw new AppError(400, `"${item.name}" chỉ còn ${item.stock} phần, vui lòng giảm số lượng`);
-      }
+      const p = perProduct.get(item.productId) ?? { name: item.name, stock: item.stock, quantity: 0 };
+      p.quantity += item.quantity;
+      perProduct.set(item.productId, p);
+    }
+    for (const p of perProduct.values()) {
+      if (p.quantity > p.stock) throw new AppError(400, `"${p.name}" chỉ còn ${p.stock} phần, vui lòng giảm số lượng`);
     }
 
     // Tiền luôn tính lại ở server — không tin số tiền client gửi lên
-    const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+    const lines = items.map((i) => {
+      const unitPrice = i.price + sizeExtra(i.size);
+      return { ...i, unitPrice, lineTotal: unitPrice * i.quantity };
+    });
+    const subtotal = lines.reduce((sum, i) => sum + i.lineTotal, 0);
     const shippingFee = calcShippingFee(subtotal, settings);
 
+    // Mã giảm giá: kiểm tra lại trong transaction + khoá dòng mã để không vượt số lượt
+    let discount = 0;
+    let couponCode = "";
+    if (input.couponCode) {
+      const result = await evaluateCoupon(client, input.couponCode, userId, subtotal, true);
+      discount = result.discount;
+      couponCode = result.coupon.code;
+      await client.query("UPDATE coupons SET used_count = used_count + 1 WHERE id = $1", [result.coupon.id]);
+    }
+    const total = subtotal - discount + shippingFee;
+
     const { rows } = await client.query<{ id: number }>(
-      `INSERT INTO orders (user_id, customer_name, phone, address, note, subtotal, shipping_fee, total)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-      [userId, input.customerName, input.phone, input.address, input.note, subtotal, shippingFee, subtotal + shippingFee],
+      `INSERT INTO orders (user_id, customer_name, phone, address, note, subtotal, coupon_code, discount, shipping_fee, total)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+      [userId, input.customerName, input.phone, input.address, input.note, subtotal, couponCode, discount, shippingFee, total],
     );
     const newOrderId = rows[0].id;
 
-    for (const item of items) {
+    for (const line of lines) {
       await client.query(
-        `INSERT INTO order_items (order_id, product_id, product_name, product_image, unit_price, quantity, line_total)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [newOrderId, item.productId, item.name, item.image, item.price, item.quantity, item.price * item.quantity],
+        `INSERT INTO order_items (order_id, product_id, product_name, product_image, size, sugar, ice, note, unit_price, quantity, line_total)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [newOrderId, line.productId, line.name, line.image, line.size, line.sugar, line.ice, line.note, line.unitPrice, line.quantity, line.lineTotal],
       );
-      await client.query("UPDATE products SET stock = stock - $1, updated_at = NOW() WHERE id = $2", [item.quantity, item.productId]);
+    }
+
+    for (const [productId, p] of perProduct) {
+      await client.query("UPDATE products SET stock = stock - $1, updated_at = NOW() WHERE id = $2", [p.quantity, productId]);
 
       // Chỉ báo khi tồn kho VỪA tụt xuống dưới ngưỡng hoặc VỪA hết (tránh báo lặp ở mỗi đơn)
-      const left = item.stock - item.quantity;
-      const crossedThreshold = item.stock > LOW_STOCK_THRESHOLD && left <= LOW_STOCK_THRESHOLD;
+      const left = p.stock - p.quantity;
+      const crossedThreshold = p.stock > LOW_STOCK_THRESHOLD && left <= LOW_STOCK_THRESHOLD;
       if (crossedThreshold || left === 0) {
         await notifyAdmins(
           {
             type: "low_stock",
-            title: left === 0 ? `"${item.name}" đã hết hàng` : `"${item.name}" sắp hết hàng`,
+            title: left === 0 ? `"${p.name}" đã hết hàng` : `"${p.name}" sắp hết hàng`,
             message: left === 0 ? "Món này không thể đặt thêm cho tới khi nhập hàng." : `Chỉ còn ${left} phần trong kho.`,
             link: "/admin/products",
           },
@@ -118,12 +150,12 @@ export async function checkout(userId: number, input: CheckoutInput): Promise<Or
 
     await client.query("DELETE FROM cart_items WHERE user_id = $1", [userId]);
 
-    const totalQty = items.reduce((sum, i) => sum + i.quantity, 0);
+    const totalQty = lines.reduce((sum, i) => sum + i.quantity, 0);
     await notifyAdmins(
       {
         type: "new_order",
         title: `Đơn hàng mới ${code(newOrderId)}`,
-        message: `${input.customerName} đặt ${totalQty} món · ${money(subtotal + shippingFee)}`,
+        message: `${input.customerName} đặt ${totalQty} món · ${money(total)}${couponCode ? ` (mã ${couponCode})` : ""}`,
         link: `/admin/orders?order=${newOrderId}`,
       },
       client,
@@ -141,8 +173,8 @@ export async function findByUser(userId: number): Promise<Order[]> {
 }
 
 /**
- * "Mua lại": bỏ các món của đơn cũ vào giỏ. Món đã xoá / ngừng bán / hết hàng thì bỏ qua,
- * số lượng không vượt quá tồn kho (và tối đa 99).
+ * "Mua lại": bỏ các món của đơn cũ vào giỏ (giữ nguyên size / đường / đá / ghi chú).
+ * Món đã xoá / ngừng bán / hết hàng thì bỏ qua, số lượng không vượt quá tồn kho (và tối đa 99).
  */
 export async function reorder(userId: number, id: number) {
   const order = await findById(id);
@@ -152,19 +184,28 @@ export async function reorder(userId: number, id: number) {
   const skipped: string[] = [];
   for (const item of order.items) {
     const { rows } = item.productId
-      ? await pool.query<{ stock: number; isAvailable: boolean }>(`SELECT stock, is_available AS "isAvailable" FROM products WHERE id = $1`, [item.productId])
+      ? await pool.query<{ stock: number; isAvailable: boolean; hasOptions: boolean; inCart: number }>(
+          `SELECT stock, is_available AS "isAvailable", has_options AS "hasOptions",
+                  (SELECT COALESCE(SUM(quantity), 0)::int FROM cart_items WHERE user_id = $2 AND product_id = $1) AS "inCart"
+           FROM products WHERE id = $1`,
+          [item.productId, userId],
+        )
       : { rows: [] };
     const product = rows[0];
-    if (!product || !product.isAvailable || product.stock === 0) {
+    const room = product ? Math.min(product.stock - product.inCart, item.quantity) : 0;
+    if (!product || !product.isAvailable || room <= 0) {
       skipped.push(item.name);
       continue;
     }
-    // Cộng dồn với giỏ hiện tại nhưng không vượt tồn kho / 99
+    // Món đã tắt tuỳ chọn thì bỏ size / đường / đá cũ đi
+    const size = product.hasOptions ? item.size : "";
+    const sugar = product.hasOptions ? item.sugar : "";
+    const ice = product.hasOptions ? item.ice : "";
     await pool.query(
-      `INSERT INTO cart_items (user_id, product_id, quantity) VALUES ($1, $2, LEAST($3::int, $4::int, 99))
-       ON CONFLICT (user_id, product_id)
-       DO UPDATE SET quantity = LEAST(cart_items.quantity + EXCLUDED.quantity, $4::int, 99), updated_at = NOW()`,
-      [userId, item.productId, item.quantity, product.stock],
+      `INSERT INTO cart_items (user_id, product_id, size, sugar, ice, note, quantity) VALUES ($1, $2, $3, $4, $5, $6, LEAST($7::int, 99))
+       ON CONFLICT (user_id, product_id, size, sugar, ice, note)
+       DO UPDATE SET quantity = LEAST(cart_items.quantity + EXCLUDED.quantity, 99), updated_at = NOW()`,
+      [userId, item.productId, size, sugar, ice, item.note, room],
     );
     added.push(item.name);
   }
@@ -180,23 +221,26 @@ export async function findById(id: number): Promise<Order> {
   return rows[0];
 }
 
-/** Đổi trạng thái, kiểm tra theo STATUS_TRANSITIONS. Huỷ đơn → hoàn lại tồn kho. */
 /** Nội dung báo cho khách khi admin đổi trạng thái đơn */
 const CUSTOMER_MESSAGES: Partial<Record<OrderStatus, { title: string; message: string }>> = {
   confirmed: { title: "đã được xác nhận", message: "Quán đang pha chế đồ uống cho bạn ☕" },
   shipping: { title: "đang được giao", message: "Shipper đang trên đường tới, bạn để ý điện thoại nhé 🛵" },
-  completed: { title: "đã giao thành công", message: "Cảm ơn bạn đã ủng hộ Hưng Café! Hẹn gặp lại 💛" },
+  completed: { title: "đã giao thành công", message: "Cảm ơn bạn đã ủng hộ Hưng Café! Đừng quên đánh giá món nhé ⭐" },
   cancelled: { title: "đã bị huỷ", message: "Quán đã huỷ đơn này. Liên hệ quán nếu bạn cần hỗ trợ." },
 };
 
 /**
- * Đổi trạng thái, kiểm tra theo STATUS_TRANSITIONS. Huỷ đơn → hoàn lại tồn kho.
+ * Đổi trạng thái, kiểm tra theo STATUS_TRANSITIONS. Huỷ đơn → hoàn lại tồn kho + trả lại lượt mã giảm giá.
  * `notifyCustomer`: admin đổi → báo cho khách; khách tự huỷ thì không cần báo lại chính họ.
  */
-export async function changeStatus(id: number, next: OrderStatus, notifyCustomer = true): Promise<Order> {
+export async function changeStatus(
+  id: number,
+  next: OrderStatus,
+  { reason = "", notifyCustomer = true }: { reason?: string; notifyCustomer?: boolean } = {},
+): Promise<Order> {
   await withTransaction(async (client) => {
-    const { rows } = await client.query<{ status: OrderStatus; userId: number | null }>(
-      `SELECT status, user_id AS "userId" FROM orders WHERE id = $1 FOR UPDATE`,
+    const { rows } = await client.query<{ status: OrderStatus; userId: number | null; couponCode: string }>(
+      `SELECT status, user_id AS "userId", coupon_code AS "couponCode" FROM orders WHERE id = $1 FOR UPDATE`,
       [id],
     );
     if (!rows[0]) throw new AppError(404, "Không tìm thấy đơn hàng");
@@ -206,22 +250,35 @@ export async function changeStatus(id: number, next: OrderStatus, notifyCustomer
       throw new AppError(400, `Không thể chuyển đơn từ "${STATUS_LABELS[current]}" sang "${STATUS_LABELS[next]}"`);
     }
 
-    await client.query("UPDATE orders SET status = $1, updated_at = NOW() WHERE id = $2", [next, id]);
+    await client.query("UPDATE orders SET status = $1, cancel_reason = $2, updated_at = NOW() WHERE id = $3", [
+      next,
+      next === "cancelled" ? reason : "",
+      id,
+    ]);
 
     if (next === "cancelled") {
       await client.query(
-        `UPDATE products p SET stock = p.stock + oi.quantity, updated_at = NOW()
-         FROM order_items oi
-         WHERE oi.order_id = $1 AND oi.product_id = p.id`,
+        `UPDATE products p SET stock = p.stock + oi.qty, updated_at = NOW()
+         FROM (SELECT product_id, SUM(quantity) AS qty FROM order_items WHERE order_id = $1 GROUP BY product_id) oi
+         WHERE oi.product_id = p.id`,
         [id],
       );
+      // Đơn huỷ → trả lại 1 lượt cho mã giảm giá (khách cũng dùng lại được mã đó)
+      if (rows[0].couponCode) {
+        await client.query("UPDATE coupons SET used_count = GREATEST(used_count - 1, 0) WHERE code = $1", [rows[0].couponCode]);
+      }
     }
 
     const content = CUSTOMER_MESSAGES[next];
     if (notifyCustomer && content && rows[0].userId) {
       await notifyUser(
         rows[0].userId,
-        { type: "order_status", title: `Đơn ${code(id)} ${content.title}`, message: content.message, link: `/orders#don-${id}` },
+        {
+          type: "order_status",
+          title: `Đơn ${code(id)} ${content.title}`,
+          message: next === "cancelled" && reason ? `Lý do: ${reason}` : content.message,
+          link: `/orders#don-${id}`,
+        },
         client,
       );
     }
@@ -230,15 +287,15 @@ export async function changeStatus(id: number, next: OrderStatus, notifyCustomer
 }
 
 /** Khách tự huỷ đơn của mình — chỉ khi đơn còn "Chờ xác nhận" */
-export async function cancelByCustomer(userId: number, id: number): Promise<Order> {
+export async function cancelByCustomer(userId: number, id: number, reason = ""): Promise<Order> {
   const order = await findById(id);
   if (order.userId !== userId) throw new AppError(404, "Không tìm thấy đơn hàng");
   if (order.status !== "pending") throw new AppError(400, "Đơn đã được xác nhận, vui lòng liên hệ quán để huỷ");
-  const cancelled = await changeStatus(id, "cancelled", false);
+  const cancelled = await changeStatus(id, "cancelled", { reason: reason || "Khách tự huỷ đơn", notifyCustomer: false });
   await notifyAdmins({
     type: "order_cancelled",
     title: `Khách đã huỷ đơn ${code(id)}`,
-    message: `${order.customerName} · ${money(order.total)} — tồn kho đã được hoàn lại.`,
+    message: `${order.customerName} · ${money(order.total)}${reason ? ` — Lý do: ${reason}` : " — tồn kho đã được hoàn lại."}`,
     link: `/admin/orders?order=${id}`,
   });
   return cancelled;

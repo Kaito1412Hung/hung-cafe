@@ -19,6 +19,10 @@ export const NEXT_STEP: Partial<Record<OrderStatus, { status: OrderStatus; label
 
 export const CANCELLABLE: OrderStatus[] = ["pending", "confirmed"];
 
+/** Lý do huỷ gợi ý (vẫn cho nhập lý do khác) */
+export const ADMIN_CANCEL_REASONS = ["Món trong đơn đã hết", "Không liên lạc được với khách", "Địa chỉ ngoài khu vực giao hàng", "Khách yêu cầu huỷ", "Quán quá tải, không kịp giao"];
+export const CUSTOMER_CANCEL_REASONS = ["Đặt nhầm món / số lượng", "Muốn đổi địa chỉ hoặc số điện thoại", "Đổi ý, không muốn mua nữa", "Thời gian giao quá lâu"];
+
 /** Các bước hiển thị trên thanh tiến trình đơn hàng */
 export const ORDER_STEPS: OrderStatus[] = ["pending", "confirmed", "shipping", "completed"];
 

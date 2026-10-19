@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
 import { env } from "./config/env";
 import { pool } from "./db/pool";
 import { authRouter } from "./modules/auth/auth.routes";
@@ -13,9 +14,18 @@ import { adminRouter } from "./modules/admin/admin.routes";
 import { notificationsRouter } from "./modules/notifications/notifications.routes";
 import { UPLOAD_DIR, uploadsRouter } from "./modules/uploads/uploads.routes";
 import { contactRouter, newsletterRouter, publicStatsRouter } from "./modules/contact/contact.routes";
+import { couponsRouter } from "./modules/coupons/coupons.routes";
+import { reviewsRouter } from "./modules/reviews/reviews.routes";
+import { favoritesRouter } from "./modules/favorites/favorites.routes";
+import { reportsRouter } from "./modules/admin/reports.routes";
 import { errorHandler, notFound } from "./middlewares/errorHandler";
 
 export const app = express();
+
+// Request đi qua Next.js (cùng máy) → tin header X-Forwarded-For để lấy IP thật của người dùng (dùng cho chống spam)
+app.set("trust proxy", "loopback");
+// helmet: thêm các header bảo mật cơ bản (chống nhúng iframe, đoán kiểu file...). Cho phép web khác hiển thị ảnh đã upload.
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 
 app.use(cors({ origin: env.CLIENT_URL, credentials: true }));
 app.use(cookieParser());
@@ -43,6 +53,10 @@ app.use("/api/notifications", notificationsRouter);
 app.use("/api/contact", contactRouter);
 app.use("/api/newsletter", newsletterRouter);
 app.use("/api/stats", publicStatsRouter);
+app.use("/api/coupons", couponsRouter);
+app.use("/api/reviews", reviewsRouter);
+app.use("/api/favorites", favoritesRouter);
+app.use("/api/admin/reports", reportsRouter);
 
 app.use(notFound);
 app.use(errorHandler);

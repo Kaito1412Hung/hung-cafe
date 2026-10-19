@@ -77,5 +77,5 @@ export function useShopSettings() {
   return ctx;
 }
 
-/** "07:00" → "7:00" cho dễ đọc */
-export const formatHour = (hhmm: string) => hhmm.replace(/^0(\d)/, "$1");
+// Hàm định dạng giờ nằm ở lib/utils (dùng được cả ở server); export lại để code cũ vẫn chạy
+export { formatHour } from "@/lib/utils";

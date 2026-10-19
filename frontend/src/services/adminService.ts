@@ -8,6 +8,17 @@ export const adminService = {
     return (await api<{ data: DashboardStats }>(`/admin/stats?days=${days}`)).data;
   },
 
+  /** Tải file Excel báo cáo doanh thu (trả về file + tên file từ server) */
+  async downloadRevenueReport(days: number): Promise<{ blob: Blob; fileName: string }> {
+    const res = await fetch(`/api/admin/reports/revenue?days=${days}`, { credentials: "include" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.message ?? "Không tạo được báo cáo");
+    }
+    const fileName = res.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] ?? "bao-cao-doanh-thu.xlsx";
+    return { blob: await res.blob(), fileName };
+  },
+
   async getCustomers(params: { search?: string; role?: Role | "all" } = {}): Promise<Customer[]> {
     const query = new URLSearchParams();
     if (params.search) query.set("search", params.search);
