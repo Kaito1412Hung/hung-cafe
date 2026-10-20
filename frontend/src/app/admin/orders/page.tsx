@@ -12,7 +12,8 @@ import { cn, formatPrice } from "@/lib/utils";
 import { orderService } from "@/services/orderService";
 import type { Order, OrderStatus, OrderSummary } from "@/types/order";
 
-const PAGE_SIZE = 8;
+/** Số đơn mỗi trang — server chỉ trả đúng trang đang xem */
+const PAGE_SIZE = 10;
 type StatusFilter = OrderStatus | "all";
 
 export default function AdminOrdersPage() {
@@ -40,8 +41,8 @@ function AdminOrders() {
   const handledParam = useRef<number | null>(null);
 
   // Kết quả gắn với "key" của bộ lọc → biết dữ liệu đang hiển thị có khớp bộ lọc hiện tại không
-  const queryKey = `${status}|${debouncedSearch}`;
-  const [result, setResult] = useState<{ key: string; orders: Order[]; summary: OrderSummary } | null>(null);
+  const queryKey = `${status}|${debouncedSearch}|${page}`;
+  const [result, setResult] = useState<{ key: string; orders: Order[]; total: number; summary: OrderSummary } | null>(null);
   const loading = result?.key !== queryKey;
 
   // Gõ tìm kiếm: đợi 350ms ngừng gõ mới gọi API (debounce)
@@ -53,13 +54,13 @@ function AdminOrders() {
   useEffect(() => {
     let cancelled = false;
     orderService
-      .getAll({ status, search: debouncedSearch })
-      .then((res) => !cancelled && setResult({ key: queryKey, orders: res.data, summary: res.summary }))
+      .getAll({ status, search: debouncedSearch, page, pageSize: PAGE_SIZE })
+      .then((res) => !cancelled && setResult({ key: queryKey, orders: res.data, total: res.total, summary: res.summary }))
       .catch((err: Error) => !cancelled && toast(err.message, "error"));
     return () => {
       cancelled = true;
     };
-  }, [status, debouncedSearch, queryKey, toast]);
+  }, [status, debouncedSearch, page, queryKey, toast]);
 
   /**
    * Bấm thông báo đơn mới khi đang ở sẵn trang này: danh sách đã tải từ trước nên CHƯA có đơn đó
@@ -74,11 +75,11 @@ function AdminOrders() {
       .then(setLinked)
       .catch((err: Error) => toast(err.message, "error"));
     orderService
-      .getAll({ status, search: debouncedSearch })
-      // Chỉ cập nhật nếu bộ lọc chưa đổi trong lúc chờ
-      .then((res) => setResult((prev) => (prev?.key === queryKey ? { key: queryKey, orders: res.data, summary: res.summary } : prev)))
+      .getAll({ status, search: debouncedSearch, page, pageSize: PAGE_SIZE })
+      // Chỉ cập nhật nếu bộ lọc / trang chưa đổi trong lúc chờ
+      .then((res) => setResult((prev) => (prev?.key === queryKey ? { key: queryKey, orders: res.data, total: res.total, summary: res.summary } : prev)))
       .catch(() => {});
-  }, [orderParam, result, queryKey, status, debouncedSearch, toast]);
+  }, [orderParam, result, queryKey, status, debouncedSearch, page, toast]);
 
   const orders = useMemo(() => result?.orders ?? [], [result]);
   const summary = result?.summary;
@@ -91,9 +92,11 @@ function AdminOrders() {
     if (orderParam) router.replace(pathname, { scroll: false });
   };
 
-  const totalPages = Math.max(1, Math.ceil(orders.length / PAGE_SIZE));
+  // Server đã chia trang: `orders` chính là đơn của trang đang xem
+  const totalItems = result?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
-  const paginated = orders.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const paginated = orders;
 
   const handleChangeStatus = async (order: Order, next: OrderStatus, reason = "") => {
     try {
@@ -245,7 +248,7 @@ function AdminOrders() {
         )}
 
         {!loading && orders.length > 0 && (
-          <Pagination page={currentPage} totalPages={totalPages} totalItems={orders.length} pageSize={PAGE_SIZE} onChange={setPage} itemLabel="đơn hàng" />
+          <Pagination page={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={PAGE_SIZE} onChange={setPage} itemLabel="đơn hàng" />
         )}
       </div>
 

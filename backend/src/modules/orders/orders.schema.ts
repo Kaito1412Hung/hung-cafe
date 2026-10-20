@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ItemOptions } from "../cart/options";
+import type { ItemOptions, ToppingSnapshot } from "../cart/options";
 
 export const ORDER_STATUSES = ["pending", "confirmed", "shipping", "completed", "cancelled"] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
@@ -52,7 +52,9 @@ export const cancelMineSchema = z.object({ reason: cancelReason.default("") }).d
 
 export type CheckoutInput = z.infer<typeof checkoutSchema>;
 
-export interface OrderItem extends ItemOptions {
+export interface OrderItem extends Omit<ItemOptions, "toppings"> {
+  /** Topping lúc đặt (tên + giá chụp lại) */
+  toppings: ToppingSnapshot[];
   productId: number | null;
   name: string;
   image: string;

@@ -4,7 +4,8 @@ import { calcShippingFee, getOpenStatus, getShopSettings } from "../settings/set
 import { AppError } from "../../utils/AppError";
 import { LOW_STOCK_THRESHOLD, cleanup as cleanupNotifications, notifyAdmins, notifyUser } from "../notifications/notifications.service";
 import { evaluate as evaluateCoupon } from "../coupons/coupons.service";
-import { sizeExtra } from "../cart/options";
+import { normalizeOptions, parseToppingIds, sizeExtra, type ProductOptionConfig } from "../cart/options";
+import { availableMap } from "../toppings/toppings.service";
 import { STATUS_LABELS, STATUS_TRANSITIONS, type CheckoutInput, type Order, type OrderStatus } from "./orders.schema";
 
 // Lấy đơn kèm danh sách món (json_agg gom các dòng order_items thành mảng JSON)
@@ -17,7 +18,7 @@ const ORDER_SELECT = `
          COALESCE(
            json_agg(json_build_object(
              'productId', oi.product_id, 'name', oi.product_name, 'image', oi.product_image,
-             'size', oi.size, 'sugar', oi.sugar, 'ice', oi.ice, 'note', oi.note,
+             'size', oi.size, 'sugar', oi.sugar, 'temp', oi.temp, 'ice', oi.ice, 'toppings', oi.toppings, 'note', oi.note,
              'unitPrice', oi.unit_price, 'quantity', oi.quantity, 'lineTotal', oi.line_total
            ) ORDER BY oi.id) FILTER (WHERE oi.id IS NOT NULL),
            '[]'
@@ -66,12 +67,14 @@ export async function checkout(userId: number, input: CheckoutInput): Promise<Or
       isAvailable: boolean;
       size: string;
       sugar: string;
+      temp: string;
       ice: string;
+      toppings: string;
       note: string;
       quantity: number;
     }>(
       `SELECT p.id AS "productId", p.name, p.image, p.price, p.stock, p.is_available AS "isAvailable",
-              c.size, c.sugar, c.ice, c.note, c.quantity
+              c.size, c.sugar, c.temp, c.ice, c.toppings, c.note, c.quantity
        FROM cart_items c JOIN products p ON p.id = c.product_id
        WHERE c.user_id = $1
        ORDER BY c.created_at, c.id
@@ -95,10 +98,15 @@ export async function checkout(userId: number, input: CheckoutInput): Promise<Or
       if (p.quantity > p.stock) throw new AppError(400, `"${p.name}" chỉ còn ${p.stock} phần, vui lòng giảm số lượng`);
     }
 
-    // Tiền luôn tính lại ở server — không tin số tiền client gửi lên
+    // Tiền luôn tính lại ở server — không tin số tiền client gửi lên. Topping lấy giá hiện tại; topping vừa ngưng bán → báo khách
+    const toppingMap = await availableMap(client);
     const lines = items.map((i) => {
-      const unitPrice = i.price + sizeExtra(i.size);
-      return { ...i, unitPrice, lineTotal: unitPrice * i.quantity };
+      const ids = parseToppingIds(i.toppings);
+      const missing = ids.find((id) => !toppingMap.has(id));
+      if (missing) throw new AppError(400, `Một topping của "${i.name}" vừa hết, vui lòng xoá món đó và chọn lại`);
+      const toppings = ids.map((id) => toppingMap.get(id)!);
+      const unitPrice = i.price + sizeExtra(i.size) + toppings.reduce((s, t) => s + t.price, 0);
+      return { ...i, toppings, unitPrice, lineTotal: unitPrice * i.quantity };
     });
     const subtotal = lines.reduce((sum, i) => sum + i.lineTotal, 0);
     const shippingFee = calcShippingFee(subtotal, settings);
@@ -123,9 +131,23 @@ export async function checkout(userId: number, input: CheckoutInput): Promise<Or
 
     for (const line of lines) {
       await client.query(
-        `INSERT INTO order_items (order_id, product_id, product_name, product_image, size, sugar, ice, note, unit_price, quantity, line_total)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-        [newOrderId, line.productId, line.name, line.image, line.size, line.sugar, line.ice, line.note, line.unitPrice, line.quantity, line.lineTotal],
+        `INSERT INTO order_items (order_id, product_id, product_name, product_image, size, sugar, temp, ice, toppings, note, unit_price, quantity, line_total)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        [
+          newOrderId,
+          line.productId,
+          line.name,
+          line.image,
+          line.size,
+          line.sugar,
+          line.temp,
+          line.ice,
+          JSON.stringify(line.toppings),
+          line.note,
+          line.unitPrice,
+          line.quantity,
+          line.lineTotal,
+        ],
       );
     }
 
@@ -167,25 +189,30 @@ export async function checkout(userId: number, input: CheckoutInput): Promise<Or
   return findById(orderId);
 }
 
-export async function findByUser(userId: number): Promise<Order[]> {
-  const { rows } = await pool.query<Order>(`${ORDER_SELECT} WHERE o.user_id = $1 ${GROUP_BY} ORDER BY o.created_at DESC`, [userId]);
-  return rows;
+/** Đơn của 1 khách, mới nhất trước, theo từng trang (nút "Xem thêm") */
+export async function findByUser(userId: number, { limit = 10, offset = 0 } = {}): Promise<{ orders: Order[]; total: number }> {
+  const [list, count] = await Promise.all([
+    pool.query<Order>(`${ORDER_SELECT} WHERE o.user_id = $1 ${GROUP_BY} ORDER BY o.created_at DESC, o.id DESC LIMIT $2 OFFSET $3`, [userId, limit, offset]),
+    pool.query<{ total: number }>("SELECT COUNT(*)::int AS total FROM orders WHERE user_id = $1", [userId]),
+  ]);
+  return { orders: list.rows, total: count.rows[0].total };
 }
 
 /**
- * "Mua lại": bỏ các món của đơn cũ vào giỏ (giữ nguyên size / đường / đá / ghi chú).
+ * "Mua lại": bỏ các món của đơn cũ vào giỏ (giữ size / đường / nóng-đá / topping / ghi chú nếu món vẫn còn các lựa chọn đó).
  * Món đã xoá / ngừng bán / hết hàng thì bỏ qua, số lượng không vượt quá tồn kho (và tối đa 99).
  */
 export async function reorder(userId: number, id: number) {
   const order = await findById(id);
   if (order.userId !== userId) throw new AppError(404, "Không tìm thấy đơn hàng");
 
+  const toppingMap = await availableMap();
   const added: string[] = [];
   const skipped: string[] = [];
   for (const item of order.items) {
     const { rows } = item.productId
-      ? await pool.query<{ stock: number; isAvailable: boolean; hasOptions: boolean; inCart: number }>(
-          `SELECT stock, is_available AS "isAvailable", has_options AS "hasOptions",
+      ? await pool.query<{ stock: number; isAvailable: boolean; inCart: number } & ProductOptionConfig>(
+          `SELECT stock, is_available AS "isAvailable", has_size AS "hasSize", has_sugar AS "hasSugar", serve, allow_toppings AS "allowToppings",
                   (SELECT COALESCE(SUM(quantity), 0)::int FROM cart_items WHERE user_id = $2 AND product_id = $1) AS "inCart"
            FROM products WHERE id = $1`,
           [item.productId, userId],
@@ -197,15 +224,24 @@ export async function reorder(userId: number, id: number) {
       skipped.push(item.name);
       continue;
     }
-    // Món đã tắt tuỳ chọn thì bỏ size / đường / đá cũ đi
-    const size = product.hasOptions ? item.size : "";
-    const sugar = product.hasOptions ? item.sugar : "";
-    const ice = product.hasOptions ? item.ice : "";
+    // Chuẩn hoá lại theo cấu hình HIỆN TẠI của món (VD món đã tắt size → bỏ size cũ; topping đã ngưng → bỏ)
+    const o = normalizeOptions(
+      product,
+      {
+        size: item.size || undefined,
+        sugar: item.sugar || undefined,
+        temp: item.temp || undefined,
+        ice: item.ice || undefined,
+        toppings: (item.toppings ?? []).map((t) => t.id),
+        note: item.note,
+      },
+      toppingMap,
+    );
     await pool.query(
-      `INSERT INTO cart_items (user_id, product_id, size, sugar, ice, note, quantity) VALUES ($1, $2, $3, $4, $5, $6, LEAST($7::int, 99))
-       ON CONFLICT (user_id, product_id, size, sugar, ice, note)
+      `INSERT INTO cart_items (user_id, product_id, size, sugar, temp, ice, toppings, note, quantity) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, LEAST($9::int, 99))
+       ON CONFLICT (user_id, product_id, size, sugar, temp, ice, toppings, note)
        DO UPDATE SET quantity = LEAST(cart_items.quantity + EXCLUDED.quantity, 99), updated_at = NOW()`,
-      [userId, item.productId, size, sugar, ice, item.note, room],
+      [userId, item.productId, o.size, o.sugar, o.temp, o.ice, o.toppings, o.note, room],
     );
     added.push(item.name);
   }
@@ -306,9 +342,13 @@ export async function cancelByCustomer(userId: number, id: number, reason = ""):
 export interface OrderFilters {
   status?: string;
   search?: string;
+  /** Trang (từ 1) + số đơn mỗi trang. Không truyền pageSize → lấy hết */
+  page?: number;
+  pageSize?: number;
 }
 
-export async function findAll(filters: OrderFilters): Promise<Order[]> {
+/** Danh sách đơn cho admin: lọc + chia trang ở server (không tải cả trăm đơn một lần) */
+export async function findAll(filters: OrderFilters): Promise<{ orders: Order[]; total: number }> {
   const conditions: string[] = [];
   const values: unknown[] = [];
 
@@ -325,8 +365,17 @@ export async function findAll(filters: OrderFilters): Promise<Order[]> {
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-  const { rows } = await pool.query<Order>(`${ORDER_SELECT} ${where} ${GROUP_BY} ORDER BY o.created_at DESC`, values);
-  return rows;
+  let paging = "";
+  const listValues = [...values];
+  if (filters.pageSize) {
+    listValues.push(filters.pageSize, ((filters.page ?? 1) - 1) * filters.pageSize);
+    paging = `LIMIT $${listValues.length - 1} OFFSET $${listValues.length}`;
+  }
+  const [list, count] = await Promise.all([
+    pool.query<Order>(`${ORDER_SELECT} ${where} ${GROUP_BY} ORDER BY o.created_at DESC, o.id DESC ${paging}`, listValues),
+    pool.query<{ total: number }>(`SELECT COUNT(*)::int AS total FROM orders o ${where}`, values),
+  ]);
+  return { orders: list.rows, total: count.rows[0].total };
 }
 
 /** Số đơn theo từng trạng thái + doanh thu (chỉ tính đơn đã hoàn thành) */

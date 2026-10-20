@@ -5,7 +5,7 @@ import { Trash2 } from "lucide-react";
 import { ProductImage } from "@/components/ui/ProductImage";
 import { useCartActions } from "@/hooks/useCartActions";
 import { cn, formatPrice } from "@/lib/utils";
-import { describeOptions } from "@/lib/options";
+import { describeOptions, describeToppings } from "@/lib/options";
 import { useCategories } from "@/context/CategoriesContext";
 import type { CartItem } from "@/types/cart";
 import { QuantityStepper } from "./QuantityStepper";
@@ -36,6 +36,7 @@ export function CartItemRow({ item, compact }: { item: CartItem; compact?: boole
               </Link>
             </h3>
             {options && <p className="text-xs text-coffee-600">{options}</p>}
+            {item.toppings.length > 0 && <p className="text-xs font-medium text-coffee-700">{describeToppings(item.toppings)}</p>}
             {item.note && <p className="truncate text-xs italic text-coffee-500">Ghi chú: {item.note}</p>}
             <p className="text-sm text-coffee-600">{formatPrice(item.unitPrice)}</p>
           </div>

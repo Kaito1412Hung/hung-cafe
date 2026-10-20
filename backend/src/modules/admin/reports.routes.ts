@@ -66,13 +66,13 @@ reportsRouter.get("/revenue", async (req, res) => {
       shippingFee: number;
       total: number;
       cancelReason: string;
-      items: { name: string; quantity: number; size: string; sugar: string; ice: string; note: string }[];
+      items: { name: string; quantity: number; size: string; sugar: string; temp: string; ice: string; note: string; toppings: { name: string }[] }[];
     }>(
       `SELECT o.id, to_char(o.created_at AT TIME ZONE '${TZ}', 'DD/MM/YYYY HH24:MI') AS "createdAt",
               o.customer_name AS "customerName", o.phone, o.status, o.subtotal, o.coupon_code AS "couponCode",
               o.discount, o.shipping_fee AS "shippingFee", o.total, o.cancel_reason AS "cancelReason",
               json_agg(json_build_object('name', oi.product_name, 'quantity', oi.quantity,
-                'size', oi.size, 'sugar', oi.sugar, 'ice', oi.ice, 'note', oi.note) ORDER BY oi.id) AS items
+                'size', oi.size, 'sugar', oi.sugar, 'temp', oi.temp, 'ice', oi.ice, 'note', oi.note, 'toppings', oi.toppings) ORDER BY oi.id) AS items
        FROM orders o JOIN order_items oi ON oi.order_id = o.id
        WHERE ${range}
        GROUP BY o.id ORDER BY o.created_at DESC`,

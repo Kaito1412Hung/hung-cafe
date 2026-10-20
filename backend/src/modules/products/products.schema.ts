@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SERVES } from "../cart/options";
 
 // Quy tắc của từng trường (chưa có giá trị mặc định)
 const fields = {
@@ -15,8 +16,14 @@ const fields = {
   stock: z.number({ error: "Tồn kho phải là số" }).int("Tồn kho là số nguyên").min(0, "Tồn kho phải ≥ 0"),
   isAvailable: z.boolean(),
   isBestSeller: z.boolean(),
-  /** Có cho khách chọn size / đường / đá không (bánh thì không) */
-  hasOptions: z.boolean(),
+  /** Có chọn size (S/M/L) không */
+  hasSize: z.boolean(),
+  /** Có chọn mức đường không */
+  hasSugar: z.boolean(),
+  /** Cách phục vụ: none (đồ ăn) | cold (chỉ đá) | hot (chỉ nóng) | both (khách chọn nóng hoặc đá) */
+  serve: z.enum(SERVES, { error: "Cách phục vụ không hợp lệ" }),
+  /** Có cho thêm topping không */
+  allowToppings: z.boolean(),
 };
 
 /** POST / PUT: thiếu trường không bắt buộc thì dùng giá trị mặc định */
@@ -26,7 +33,10 @@ export const productSchema = z.object({
   image: fields.image.default(""),
   isAvailable: fields.isAvailable.default(true),
   isBestSeller: fields.isBestSeller.default(false),
-  hasOptions: fields.hasOptions.default(true),
+  hasSize: fields.hasSize.default(true),
+  hasSugar: fields.hasSugar.default(true),
+  serve: fields.serve.default("cold"),
+  allowToppings: fields.allowToppings.default(false),
 });
 
 /**
@@ -45,6 +55,8 @@ export type ProductPatch = z.infer<typeof productPatchSchema>;
 export interface Product extends ProductInput {
   id: number;
   slug: string;
+  /** Món có ít nhất 1 lựa chọn (size / đường / nóng-đá / topping) → mở hộp thoại chọn khi bấm "+" */
+  hasOptions: boolean;
   /** Điểm đánh giá trung bình (null = chưa có đánh giá) */
   ratingAverage: number | null;
   ratingCount: number;

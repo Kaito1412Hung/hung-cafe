@@ -1,7 +1,9 @@
+import type { ProductOptionConfig } from "@/lib/options";
+
 /** Slug của danh mục (danh sách lấy từ API /categories) */
 export type Category = string;
 
-export interface Product {
+export interface Product extends ProductOptionConfig {
   id: number;
   /** Đường dẫn trang chi tiết: /menu/{slug} */
   slug: string;
@@ -13,7 +15,7 @@ export interface Product {
   stock: number;
   isAvailable: boolean;
   isBestSeller: boolean;
-  /** Có cho chọn size / đường / đá không (bánh thì không) */
+  /** Món có ít nhất 1 lựa chọn (size / đường / nóng-đá / topping) — server tự tính */
   hasOptions: boolean;
   /** Điểm trung bình (null = chưa có đánh giá) */
   ratingAverage: number | null;
@@ -23,4 +25,4 @@ export interface Product {
 }
 
 /** Dữ liệu người dùng nhập khi tạo / sửa sản phẩm (server tự sinh id, slug và thời gian) */
-export type ProductInput = Omit<Product, "id" | "slug" | "createdAt" | "updatedAt" | "ratingAverage" | "ratingCount">;
+export type ProductInput = Omit<Product, "id" | "slug" | "createdAt" | "updatedAt" | "ratingAverage" | "ratingCount" | "hasOptions">;

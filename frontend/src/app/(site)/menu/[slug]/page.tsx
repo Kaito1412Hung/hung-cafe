@@ -102,7 +102,7 @@ export default async function ProductDetailPage({ params }: Props) {
           )}
           <p className="mt-4 text-3xl font-bold text-coffee-900">
             {formatPrice(product.price)}
-            {product.hasOptions && <span className="ml-2 align-middle text-sm font-normal text-coffee-500">size S · M +6.000đ · L +10.000đ</span>}
+            {product.hasSize && <span className="ml-2 align-middle text-sm font-normal text-coffee-500">size S · M +6.000đ · L +10.000đ</span>}
           </p>
 
           <div className="mt-3">

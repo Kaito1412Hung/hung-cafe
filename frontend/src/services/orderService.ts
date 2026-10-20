@@ -7,8 +7,9 @@ export const orderService = {
     return (await api<{ data: Order }>("/orders", { method: "POST", body: JSON.stringify(input) })).data;
   },
 
-  async getMine(): Promise<Order[]> {
-    return (await api<{ data: Order[] }>("/orders/my")).data;
+  /** Đơn của tôi theo từng đợt (nút "Xem thêm"): trả về đơn + tổng số đơn */
+  async getMine(limit = 10, offset = 0): Promise<{ data: Order[]; total: number }> {
+    return api<{ data: Order[]; total: number }>(`/orders/my?limit=${limit}&offset=${offset}`);
   },
 
   async cancelMine(id: number, reason = ""): Promise<Order> {
@@ -26,12 +27,15 @@ export const orderService = {
   },
 
   /* ----- Admin ----- */
-  async getAll(params: { status?: OrderStatus | "all"; search?: string } = {}) {
+  /** Admin: lọc + chia trang ở server */
+  async getAll(params: { status?: OrderStatus | "all"; search?: string; page?: number; pageSize?: number } = {}) {
     const query = new URLSearchParams();
     if (params.status && params.status !== "all") query.set("status", params.status);
     if (params.search) query.set("search", params.search);
+    if (params.page) query.set("page", String(params.page));
+    if (params.pageSize) query.set("pageSize", String(params.pageSize));
     const qs = query.toString();
-    return api<{ data: Order[]; summary: OrderSummary }>(`/orders${qs ? `?${qs}` : ""}`);
+    return api<{ data: Order[]; total: number; summary: OrderSummary }>(`/orders${qs ? `?${qs}` : ""}`);
   },
 
   /** Huỷ đơn thì bắt buộc kèm lý do (khách sẽ thấy) */

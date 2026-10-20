@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CircleCheckBig, Loader2, MapPin, Phone, RotateCcw, Star } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -20,6 +20,13 @@ import { OrderItemsList } from "./OrderItemsList";
 import { OrderProgress } from "./OrderProgress";
 import { OrderStatusBadge } from "./OrderStatusBadge";
 
+/** Số đơn mỗi lần tải (bấm "Xem thêm" để tải tiếp) */
+const PAGE_SIZE = 10;
+
+/** Gộp thêm đơn vào danh sách: bỏ trùng, mới nhất trước */
+const mergeOrders = (prev: Order[], more: Order[]) =>
+  [...prev, ...more.filter((o) => !prev.some((p) => p.id === o.id))].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id);
+
 export function MyOrders() {
   const { user, loading: authLoading } = useAuth();
   const toast = useToast();
@@ -27,6 +34,11 @@ export function MyOrders() {
 
   const { reloadCart, openCart } = useCart();
   const [orders, setOrders] = useState<Order[] | null>(null);
+  // Tổng số đơn trên server + số đơn đã tải theo trang (không tính đơn tải riêng từ link thông báo)
+  const [total, setTotal] = useState(0);
+  const [loaded, setLoaded] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const fetchedLinked = useRef<number | null>(null);
   const [cancelling, setCancelling] = useState<Order | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
@@ -44,6 +56,16 @@ export function MyOrders() {
       const id = Number(window.location.hash.match(/^#don-(\d+)$/)?.[1]);
       if (!id) return;
       setFocusId(id);
+      // Đơn cũ chưa nằm trong các đơn đã tải → lấy riêng đơn đó rồi chèn vào danh sách (effect chạy lại sẽ cuộn tới)
+      if (!orders.some((o) => o.id === id)) {
+        if (fetchedLinked.current === id) return;
+        fetchedLinked.current = id;
+        orderService
+          .getById(id)
+          .then((o) => setOrders((prev) => mergeOrders(prev ?? [], [o])))
+          .catch(() => {});
+        return;
+      }
       requestAnimationFrame(() => document.getElementById(`don-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
     };
     const t = setTimeout(focusFromHash, 0);
@@ -77,8 +99,13 @@ export function MyOrders() {
       .then((list) => !cancelled && setMyRatings(new Map(list.map((r) => [r.productId, { rating: r.rating, comment: r.comment }]))))
       .catch(() => {});
     orderService
-      .getMine()
-      .then((data) => !cancelled && setOrders(data))
+      .getMine(PAGE_SIZE, 0)
+      .then((res) => {
+        if (cancelled) return;
+        setOrders(res.data);
+        setTotal(res.total);
+        setLoaded(res.data.length);
+      })
       .catch((err: Error) => {
         if (cancelled) return;
         toast(err.message, "error");
@@ -88,6 +115,21 @@ export function MyOrders() {
       cancelled = true;
     };
   }, [user, toast]);
+
+  /** Tải thêm PAGE_SIZE đơn cũ hơn */
+  const loadMore = async () => {
+    setLoadingMore(true);
+    try {
+      const res = await orderService.getMine(PAGE_SIZE, loaded);
+      setOrders((prev) => mergeOrders(prev ?? [], res.data));
+      setTotal(res.total);
+      setLoaded((n) => n + res.data.length);
+    } catch (err) {
+      toast((err as Error).message, "error");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const handleCancel = async () => {
     if (!cancelling) return;
@@ -211,6 +253,18 @@ export function MyOrders() {
             )}
           </article>
         ))}
+
+        {/* Còn đơn cũ hơn trên server → nút tải tiếp */}
+        {loaded < total && (
+          <div className="flex flex-col items-center gap-1 pt-2">
+            <Button variant="outline" onClick={loadMore} loading={loadingMore} className="min-w-56 rounded-full">
+              Xem thêm đơn cũ hơn
+            </Button>
+            <p className="text-xs text-coffee-500">
+              Đang hiện {loaded} / {total} đơn
+            </p>
+          </div>
+        )}
       </div>
     );
   }

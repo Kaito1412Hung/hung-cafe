@@ -8,7 +8,11 @@ const COLUMNS = `
   id, slug, name, description, price, category, image, stock,
   is_available   AS "isAvailable",
   is_best_seller AS "isBestSeller",
-  has_options    AS "hasOptions",
+  has_size       AS "hasSize",
+  has_sugar      AS "hasSugar",
+  serve,
+  allow_toppings AS "allowToppings",
+  (has_size OR has_sugar OR serve <> 'none' OR allow_toppings) AS "hasOptions",
   created_at     AS "createdAt",
   updated_at     AS "updatedAt",
   (SELECT ROUND(AVG(r.rating), 1)::float FROM reviews r WHERE r.product_id = products.id) AS "ratingAverage",
@@ -24,7 +28,10 @@ const FIELD_TO_COLUMN: Record<keyof ProductInput, string> = {
   stock: "stock",
   isAvailable: "is_available",
   isBestSeller: "is_best_seller",
-  hasOptions: "has_options",
+  hasSize: "has_size",
+  hasSugar: "has_sugar",
+  serve: "serve",
+  allowToppings: "allow_toppings",
 };
 
 export interface ProductFilters {
@@ -102,8 +109,8 @@ export async function findById(id: number): Promise<Product> {
 export async function create(input: ProductInput): Promise<Product> {
   await assertCategoryExists(input.category);
   const { rows } = await pool.query<Product>(
-    `INSERT INTO products (slug, name, description, price, category, image, stock, is_available, is_best_seller, has_options)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `INSERT INTO products (slug, name, description, price, category, image, stock, is_available, is_best_seller, has_size, has_sugar, serve, allow_toppings)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
      RETURNING ${COLUMNS}`,
     [
       await uniqueSlug(input.name),
@@ -115,7 +122,10 @@ export async function create(input: ProductInput): Promise<Product> {
       input.stock,
       input.isAvailable,
       input.isBestSeller,
-      input.hasOptions,
+      input.hasSize,
+      input.hasSugar,
+      input.serve,
+      input.allowToppings,
     ],
   );
   return rows[0];

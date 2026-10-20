@@ -1,8 +1,10 @@
-import type { ItemOptions } from "@/lib/options";
+import type { ItemOptions, Topping } from "@/lib/options";
 
 export type OrderStatus = "pending" | "confirmed" | "shipping" | "completed" | "cancelled";
 
-export interface OrderItem extends ItemOptions {
+export interface OrderItem extends Omit<ItemOptions, "toppings"> {
+  /** Topping lúc đặt (tên + giá chụp lại) */
+  toppings: Topping[];
   productId: number | null;
   name: string;
   image: string;

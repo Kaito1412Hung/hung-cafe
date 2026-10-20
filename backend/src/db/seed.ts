@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import { pool } from "./pool";
-import { NO_OPTION_CATEGORIES, SEED_PRODUCTS } from "./seed-data";
+import { SEED_PRODUCTS, optionConfigFor } from "./seed-data";
 
 async function upsertUser(name: string, email: string | undefined, password: string | undefined, role: "admin" | "customer") {
   if (!email || !password) {
@@ -29,11 +29,12 @@ export async function seed() {
 
   // Thêm ngược để món đầu danh sách có created_at mới nhất
   for (const p of [...SEED_PRODUCTS].reverse()) {
+    // Size / đường / nóng-đá / topping tuỳ từng món (xem optionConfigFor)
+    const cfg = optionConfigFor(p);
     await pool.query(
-      `INSERT INTO products (name, description, price, category, image, stock, is_available, is_best_seller, has_options)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      // Bánh và đồ ăn nhẹ không có chọn size / đường / đá
-      [p.name, p.description, p.price, p.category, p.image, p.stock, p.isAvailable, p.isBestSeller, !NO_OPTION_CATEGORIES.includes(p.category)],
+      `INSERT INTO products (name, description, price, category, image, stock, is_available, is_best_seller, has_size, has_sugar, serve, allow_toppings)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [p.name, p.description, p.price, p.category, p.image, p.stock, p.isAvailable, p.isBestSeller, cfg.hasSize, cfg.hasSugar, cfg.serve, cfg.allowToppings],
     );
   }
   console.log(`✅ Đã thêm ${SEED_PRODUCTS.length} sản phẩm mẫu`);

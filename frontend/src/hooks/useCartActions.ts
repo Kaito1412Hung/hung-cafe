@@ -38,7 +38,12 @@ export function useCartActions() {
         requireLogin();
         return Promise.resolve(false);
       }
-      const detail = options.size ? ` (${describeOptions({ size: options.size, sugar: options.sugar ?? "", ice: options.ice ?? "" })})` : "";
+      // Thông báo kèm lựa chọn: "Đã thêm "Trà Sữa Khoai Môn" (Size M · 70% đường · Ít đá · 2 topping) vào giỏ"
+      const parts = [
+        describeOptions({ size: options.size ?? "", sugar: options.sugar ?? "", ice: options.ice ?? "", temp: options.temp ?? "" }),
+        options.toppings?.length ? `${options.toppings.length} topping` : "",
+      ].filter(Boolean);
+      const detail = parts.length ? ` (${parts.join(" · ")})` : "";
       return withToast(() => cart.addItem(productId, quantity, options), `Đã thêm ${quantity > 1 ? `${quantity} × ` : ""}"${name}"${detail} vào giỏ`);
     },
     /** lineId = mã dòng trong giỏ */

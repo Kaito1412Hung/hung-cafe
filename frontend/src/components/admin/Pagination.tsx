@@ -10,6 +10,19 @@ interface PaginationProps {
   itemLabel?: string;
 }
 
+/** Các trang cần hiện: trang đầu, trang cuối và 1 trang mỗi bên trang hiện tại; chỗ bị bỏ thì là "…" */
+function pageList(page: number, totalPages: number): (number | "…")[] {
+  if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+  const keep = new Set([1, totalPages, page - 1, page, page + 1].filter((n) => n >= 1 && n <= totalPages));
+  const sorted = [...keep].sort((a, b) => a - b);
+  const out: (number | "…")[] = [];
+  sorted.forEach((n, i) => {
+    if (i > 0 && n - sorted[i - 1] > 1) out.push("…");
+    out.push(n);
+  });
+  return out;
+}
+
 export function Pagination({ page, totalPages, totalItems, pageSize, onChange, itemLabel = "sản phẩm" }: PaginationProps) {
   const from = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, totalItems);
@@ -26,18 +39,24 @@ export function Pagination({ page, totalPages, totalItems, pageSize, onChange, i
         <button className={navBtn} onClick={() => onChange(page - 1)} disabled={page <= 1} aria-label="Trang trước">
           <ChevronLeft className="h-4 w-4" />
         </button>
-        {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-          <button
-            key={n}
-            onClick={() => onChange(n)}
-            className={cn(
-              "h-9 min-w-9 cursor-pointer rounded-lg px-3 text-sm font-medium transition",
-              n === page ? "bg-coffee-900 text-cream" : "text-coffee-700 hover:bg-coffee-100",
-            )}
-          >
-            {n}
-          </button>
-        ))}
+        {pageList(page, totalPages).map((n, i) =>
+          n === "…" ? (
+            <span key={`gap-${i}`} className="px-1 text-sm text-coffee-400">
+              …
+            </span>
+          ) : (
+            <button
+              key={n}
+              onClick={() => onChange(n)}
+              className={cn(
+                "h-9 min-w-9 cursor-pointer rounded-lg px-3 text-sm font-medium transition",
+                n === page ? "bg-coffee-900 text-cream" : "text-coffee-700 hover:bg-coffee-100",
+              )}
+            >
+              {n}
+            </button>
+          ),
+        )}
         <button className={navBtn} onClick={() => onChange(page + 1)} disabled={page >= totalPages} aria-label="Trang sau">
           <ChevronRight className="h-4 w-4" />
         </button>

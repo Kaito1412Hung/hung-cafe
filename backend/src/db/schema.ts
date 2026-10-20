@@ -167,6 +167,49 @@ ALTER TABLE order_items ADD COLUMN IF NOT EXISTS sugar VARCHAR(4)   NOT NULL DEF
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS ice   VARCHAR(10)  NOT NULL DEFAULT '';
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS note  VARCHAR(100) NOT NULL DEFAULT '';
 
+/* ---------- Tuỳ chọn riêng từng món + topping ---------- */
+-- has_size / has_sugar: có chọn size / mức đường không
+-- serve: 'none' (đồ ăn) | 'cold' (chỉ đá) | 'hot' (chỉ nóng) | 'both' (khách chọn nóng hoặc đá)
+-- allow_toppings: có cho thêm topping không (trà sữa...)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'serve') THEN
+    ALTER TABLE products ADD COLUMN has_size BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE products ADD COLUMN has_sugar BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE products ADD COLUMN serve VARCHAR(5) NOT NULL DEFAULT 'cold' CHECK (serve IN ('none', 'cold', 'hot', 'both'));
+    ALTER TABLE products ADD COLUMN allow_toppings BOOLEAN NOT NULL DEFAULT FALSE;
+    -- Lần đầu: chuyển từ cột cũ has_options, rồi chỉnh các món nóng / nóng-đá có sẵn
+    UPDATE products SET has_size = has_options, has_sugar = has_options, serve = CASE WHEN has_options THEN 'cold' ELSE 'none' END;
+    UPDATE products SET serve = 'hot', has_size = FALSE WHERE slug IN ('espresso', 'pour-over-cau-dat');
+    UPDATE products SET serve = 'hot' WHERE slug IN ('tra-gung-mat-ong', 'tra-o-long-nong');
+    UPDATE products SET serve = 'both' WHERE slug IN ('americano', 'caffe-latte', 'cappuccino', 'flat-white', 'ca-phe-trung', 'matcha-latte');
+    UPDATE products SET allow_toppings = TRUE WHERE category = 'milktea';
+  END IF;
+END $$;
+
+-- Danh sách topping (giá cộng thêm vào mỗi phần)
+CREATE TABLE IF NOT EXISTS toppings (
+  id           SERIAL PRIMARY KEY,
+  name         VARCHAR(50) NOT NULL UNIQUE,
+  price        INTEGER     NOT NULL CHECK (price >= 0),
+  is_available BOOLEAN     NOT NULL DEFAULT TRUE,
+  sort_order   INTEGER     NOT NULL DEFAULT 0,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+INSERT INTO toppings (name, price, sort_order) VALUES
+  ('Trân châu đen', 8000, 1), ('Trân châu trắng', 8000, 2), ('Thạch dừa', 6000, 3),
+  ('Thạch cà phê', 6000, 4), ('Pudding trứng', 10000, 5), ('Kem cheese', 12000, 6)
+ON CONFLICT (name) DO NOTHING;
+
+-- Giỏ: nóng/đá + topping (mã topping, sắp xếp tăng dần, VD "1,5") → khác topping là dòng khác
+ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS temp     VARCHAR(4)   NOT NULL DEFAULT '';
+ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS toppings VARCHAR(100) NOT NULL DEFAULT '';
+DROP INDEX IF EXISTS idx_cart_items_line;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cart_items_line_v2 ON cart_items(user_id, product_id, size, sugar, temp, ice, toppings, note);
+
+-- Đơn: chụp lại topping lúc đặt [{ id, name, price }] (topping đổi giá / bị xoá thì đơn cũ vẫn đúng)
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS temp     VARCHAR(4) NOT NULL DEFAULT '';
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS toppings JSONB      NOT NULL DEFAULT '[]';
+
 /* ---------- Mã giảm giá ---------- */
 CREATE TABLE IF NOT EXISTS coupons (
   id               SERIAL PRIMARY KEY,

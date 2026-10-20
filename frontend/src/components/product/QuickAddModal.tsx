@@ -52,7 +52,7 @@ function QuickAddContent({ product, onClose }: { product: Product; onClose: () =
         {state.soldOut ? (
           <SoldOutNotice />
         ) : (
-          <OptionPicker value={state.options} onChange={state.setOptions} hasOptions={product.hasOptions} idPrefix={`quick-${product.id}`} />
+          <OptionPicker value={state.options} onChange={state.setOptions} config={product} toppings={state.toppings} idPrefix={`quick-${product.id}`} />
         )}
       </div>
     </Modal>

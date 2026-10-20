@@ -47,7 +47,8 @@ export async function findAll(filters: { search?: string; role?: string }): Prom
 export async function findById(id: number) {
   const { rows } = await pool.query<Customer>(`${CUSTOMER_SELECT} WHERE u.id = $1 GROUP BY u.id`, [id]);
   if (!rows[0]) throw new AppError(404, "Không tìm thấy tài khoản");
-  return { ...rows[0], orders: await findByUser(id) };
+  // Lịch sử mua: 50 đơn gần nhất (khách quen có thể rất nhiều đơn)
+  return { ...rows[0], orders: (await findByUser(id, { limit: 50 })).orders };
 }
 
 async function countAdmins() {

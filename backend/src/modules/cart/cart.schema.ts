@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { itemOptionsSchema, type ItemOptions } from "./options";
+import { itemOptionsSchema, type ItemOptions, type ProductOptionConfig, type ToppingSnapshot } from "./options";
 
 const quantity = z
   .number({ error: "Số lượng phải là số" })
@@ -16,21 +16,22 @@ export const updateItemSchema = z.object({ quantity });
 
 export type AddItemInput = z.infer<typeof addItemSchema>;
 
-export interface CartItem extends ItemOptions {
-  /** Mã dòng trong giỏ (cùng món khác size = 2 dòng) */
+export interface CartItem extends Omit<ItemOptions, "toppings">, ProductOptionConfig {
+  /** Mã dòng trong giỏ (cùng món khác size / topping = 2 dòng) */
   id: number;
   productId: number;
   slug: string;
   name: string;
-  /** Giá gốc của món (size S) */
+  /** Giá gốc của món (size S, chưa topping) */
   price: number;
-  /** Giá 1 phần sau khi cộng phụ thu size */
+  /** Giá 1 phần sau khi cộng phụ thu size + topping */
   unitPrice: number;
+  /** Topping đã chọn (topping đã ngưng bán thì bị bỏ, không tính tiền) */
+  toppings: ToppingSnapshot[];
   image: string;
   category: string;
   stock: number;
   isAvailable: boolean;
-  hasOptions: boolean;
   quantity: number;
   lineTotal: number;
 }

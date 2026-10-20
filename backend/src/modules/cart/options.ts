@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Tuỳ chọn khi gọi món (size / đường / đá). Giá niêm yết của món = size S.
+ * Tuỳ chọn khi gọi món (size / đường / nóng-đá / đá / topping). Giá niêm yết của món = size S.
  * Frontend có bản sao danh sách này ở src/lib/options.ts — sửa ở đây thì sửa cả bên đó.
  */
 export const SIZES = {
@@ -18,6 +18,8 @@ export const SUGARS = {
   "0": "Không đường",
 } as const;
 
+export const TEMPS = { cold: "Uống đá", hot: "Uống nóng" } as const;
+
 export const ICES = {
   normal: "Đá bình thường",
   less: "Ít đá",
@@ -25,51 +27,94 @@ export const ICES = {
   separate: "Đá để riêng",
 } as const;
 
+/** Cách phục vụ của món: đồ ăn / chỉ đá / chỉ nóng / khách chọn nóng hoặc đá */
+export const SERVES = ["none", "cold", "hot", "both"] as const;
+
 export type Size = keyof typeof SIZES;
 export type Sugar = keyof typeof SUGARS;
+export type Temp = keyof typeof TEMPS;
 export type Ice = keyof typeof ICES;
+export type Serve = (typeof SERVES)[number];
 
-/** Lựa chọn mặc định khi bấm "+" nhanh ở thẻ món */
-export const DEFAULT_OPTIONS = { size: "S", sugar: "100", ice: "normal" } as const;
+/** Món này cho khách chọn những gì (admin chỉnh riêng từng món) */
+export interface ProductOptionConfig {
+  hasSize: boolean;
+  hasSugar: boolean;
+  serve: Serve;
+  allowToppings: boolean;
+}
 
-/** Dữ liệu khách gửi lên. Món không có tuỳ chọn (bánh) thì size/đường/đá bị bỏ qua. */
+/** Tối đa số topping cho 1 phần */
+export const MAX_TOPPINGS = 4;
+
+/** Dữ liệu khách gửi lên. Lựa chọn nào món không có thì bị bỏ qua. */
 export const itemOptionsSchema = z.object({
   size: z.enum(Object.keys(SIZES) as [Size, ...Size[]], { error: "Size không hợp lệ" }).optional(),
   sugar: z.enum(Object.keys(SUGARS) as [Sugar, ...Sugar[]], { error: "Mức đường không hợp lệ" }).optional(),
+  temp: z.enum(Object.keys(TEMPS) as [Temp, ...Temp[]], { error: "Nóng / đá không hợp lệ" }).optional(),
   ice: z.enum(Object.keys(ICES) as [Ice, ...Ice[]], { error: "Mức đá không hợp lệ" }).optional(),
+  toppings: z.array(z.number().int().positive()).max(MAX_TOPPINGS, `Tối đa ${MAX_TOPPINGS} topping cho 1 phần`).optional(),
   note: z.string().trim().max(100, "Ghi chú cho món tối đa 100 ký tự").optional(),
 });
 
 export type ItemOptionsInput = z.infer<typeof itemOptionsSchema>;
 
+/** Lựa chọn đã chuẩn hoá (lưu vào giỏ). toppings = chuỗi mã topping tăng dần, VD "1,5" */
 export interface ItemOptions {
   size: Size | "";
   sugar: Sugar | "";
+  temp: Temp | "";
   ice: Ice | "";
+  toppings: string;
   note: string;
 }
 
-/** Chuẩn hoá lựa chọn theo món: có tuỳ chọn → điền mặc định chỗ thiếu; không có → để trống */
-export function normalizeOptions(hasOptions: boolean, input: ItemOptionsInput = {}): ItemOptions {
+export interface ToppingSnapshot {
+  id: number;
+  name: string;
+  price: number;
+}
+
+/**
+ * Chuẩn hoá lựa chọn theo cấu hình món: điền mặc định chỗ thiếu, bỏ chỗ món không có.
+ * `availableToppings`: các topping đang bán (mã → thông tin) — topping lạ / đã ngưng bị bỏ qua.
+ */
+export function normalizeOptions(cfg: ProductOptionConfig, input: ItemOptionsInput, availableToppings: Map<number, ToppingSnapshot>): ItemOptions {
   const note = input.note?.replace(/\s+/g, " ") ?? "";
-  if (!hasOptions) return { size: "", sugar: "", ice: "", note };
+  // Nhiệt độ chỉ lưu khi khách được chọn (món "nóng hoặc đá"); món chỉ nóng / chỉ đá thì đã rõ
+  const temp: ItemOptions["temp"] = cfg.serve === "both" ? (input.temp ?? "cold") : "";
+  const isCold = cfg.serve === "cold" || (cfg.serve === "both" && temp === "cold");
+  const toppings = cfg.allowToppings
+    ? [...new Set(input.toppings ?? [])]
+        .filter((id) => availableToppings.has(id))
+        .sort((a, b) => a - b)
+        .slice(0, MAX_TOPPINGS)
+        .join(",")
+    : "";
   return {
-    size: input.size ?? DEFAULT_OPTIONS.size,
-    sugar: input.sugar ?? DEFAULT_OPTIONS.sugar,
-    ice: input.ice ?? DEFAULT_OPTIONS.ice,
+    size: cfg.hasSize ? (input.size ?? "S") : "",
+    sugar: cfg.hasSugar ? (input.sugar ?? "100") : "",
+    temp,
+    ice: isCold ? (input.ice ?? "normal") : "",
+    toppings,
     note,
   };
 }
 
+/** "1,5" → [1, 5] */
+export const parseToppingIds = (csv: string) => (csv ? csv.split(",").map(Number) : []);
+
 /** Phụ thu theo size (size rỗng = món không có size) */
 export const sizeExtra = (size: string) => SIZES[size as Size]?.extra ?? 0;
 
-/** "Vừa (M) · 50% đường · Ít đá · Ghi chú: ..." — dùng cho Excel / thông báo */
-export function describeOptions(o: { size: string; sugar: string; ice: string; note: string }) {
+/** "Vừa (M) · Uống nóng · 50% đường · Ít đá · +Trân châu đen, Pudding trứng · Ghi chú: ..." — dùng cho Excel / thông báo */
+export function describeOptions(o: { size: string; sugar: string; temp?: string; ice: string; note: string; toppings?: { name: string }[] }) {
   const parts = [
     SIZES[o.size as Size]?.label,
+    TEMPS[o.temp as Temp],
     SUGARS[o.sugar as Sugar],
     ICES[o.ice as Ice],
+    o.toppings?.length ? `+${o.toppings.map((t) => t.name).join(", ")}` : "",
     o.note && `Ghi chú: ${o.note}`,
   ].filter(Boolean);
   return parts.join(" · ");

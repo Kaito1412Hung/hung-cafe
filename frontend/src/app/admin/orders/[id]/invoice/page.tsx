@@ -7,7 +7,7 @@ import { Button, buttonClass } from "@/components/ui/Button";
 import { useShopSettings } from "@/context/ShopSettingsContext";
 import { ORDER_STATUS, formatDateTime, formatOrderCode } from "@/lib/orders";
 import { formatPrice } from "@/lib/utils";
-import { describeOptions } from "@/lib/options";
+import { describeOptions, describeToppings } from "@/lib/options";
 import { orderService } from "@/services/orderService";
 import type { Order } from "@/types/order";
 
@@ -113,8 +113,10 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
                 <td className="py-2.5 pr-2 text-coffee-500">{i + 1}</td>
                 <td className="py-2.5 pr-2">
                   <p className="font-medium text-coffee-950">{item.name}</p>
-                  {(describeOptions(item) || item.note) && (
-                    <p className="text-xs text-coffee-600">{[describeOptions(item), item.note && `Ghi chú: ${item.note}`].filter(Boolean).join(" · ")}</p>
+                  {(describeOptions(item) || item.note || item.toppings?.length > 0) && (
+                    <p className="text-xs text-coffee-600">
+                      {[describeOptions(item), describeToppings(item.toppings), item.note && `Ghi chú: ${item.note}`].filter(Boolean).join(" · ")}
+                    </p>
                   )}
                 </td>
                 <td className="py-2.5 pr-2 text-right tabular-nums">{item.quantity}</td>

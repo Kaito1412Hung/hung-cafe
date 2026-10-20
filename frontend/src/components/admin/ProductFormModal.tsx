@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/Toast";
 import { useCategories } from "@/context/CategoriesContext";
 import { resizeImage } from "@/lib/image";
 import { productService } from "@/services/productService";
+import { SERVES, type Serve } from "@/lib/options";
 import type { Category, Product, ProductInput } from "@/types/product";
 
 /** Giá trị trong form để dạng string cho dễ nhập, khi submit mới chuyển sang number */
@@ -23,7 +24,11 @@ interface FormValues {
   image: string;
   isAvailable: boolean;
   isBestSeller: boolean;
-  hasOptions: boolean;
+  /* Món cho khách chọn những gì */
+  hasSize: boolean;
+  hasSugar: boolean;
+  serve: Serve;
+  allowToppings: boolean;
 }
 type FormErrors = Partial<Record<keyof FormValues, string>>;
 
@@ -36,9 +41,15 @@ const emptyValues = (category: string): FormValues => ({
   image: "",
   isAvailable: true,
   isBestSeller: false,
-  // Đồ uống mặc định có chọn size / đường / đá, bánh thì không
-  hasOptions: category !== "cake",
+  // Mặc định theo danh mục: đồ ăn không có lựa chọn; đồ uống có size + đường + đá; trà sữa thêm topping
+  ...defaultChoices(category),
 });
+
+/** Lựa chọn gợi ý khi tạo món mới / đổi danh mục (admin vẫn chỉnh lại được) */
+function defaultChoices(category: string): Pick<FormValues, "hasSize" | "hasSugar" | "serve" | "allowToppings"> {
+  const food = category === "cake" || category === "snack";
+  return { hasSize: !food, hasSugar: !food, serve: food ? "none" : "cold", allowToppings: category === "milktea" };
+}
 
 function toFormValues(p: Product): FormValues {
   return {
@@ -50,7 +61,10 @@ function toFormValues(p: Product): FormValues {
     image: p.image,
     isAvailable: p.isAvailable,
     isBestSeller: p.isBestSeller,
-    hasOptions: p.hasOptions,
+    hasSize: p.hasSize,
+    hasSugar: p.hasSugar,
+    serve: p.serve,
+    allowToppings: p.allowToppings,
   };
 }
 
@@ -199,7 +213,15 @@ export function ProductFormModal({ open, product, onClose, onSubmit }: ProductFo
           </div>
 
           <Field label="Danh mục" htmlFor="category" error={errors.category} hint="Thêm danh mục mới ở mục Danh mục trên thanh bên">
-            <Select id="category" value={values.category} onChange={(e) => set("category", e.target.value as Category)}>
+            <Select
+              id="category"
+              value={values.category}
+              onChange={(e) => {
+                const category = e.target.value as Category;
+                // Món mới: đổi danh mục thì gợi ý lại lựa chọn (VD chọn "Đồ ăn nhẹ" → tắt size, đường, đá)
+                setValues((prev) => ({ ...prev, category, ...(isEdit ? {} : defaultChoices(category)) }));
+              }}
+            >
               {!values.category && <option value="">— Chọn danh mục —</option>}
               {categories.map((c) => (
                 <option key={c.slug} value={c.slug}>
@@ -224,7 +246,7 @@ export function ProductFormModal({ open, product, onClose, onSubmit }: ProductFo
           <Textarea id="description" value={values.description} onChange={(e) => set("description", e.target.value)} placeholder="Mô tả ngắn về hương vị, nguyên liệu..." invalid={!!errors.description} />
         </Field>
 
-        <div className="grid gap-3 sm:col-span-2 sm:grid-cols-3">
+        <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
           <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-coffee-100 p-4">
             <div>
               <p className="text-sm font-medium text-coffee-900">Đang bán</p>
@@ -239,14 +261,38 @@ export function ProductFormModal({ open, product, onClose, onSubmit }: ProductFo
             </div>
             <Switch checked={values.isBestSeller} onChange={(v) => set("isBestSeller", v)} label="Bán chạy" />
           </label>
-          <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-coffee-100 p-4">
-            <div>
-              <p className="text-sm font-medium text-coffee-900">Chọn size / đường / đá</p>
-              <p className="text-xs text-coffee-500">Tắt cho bánh, món đóng gói</p>
-            </div>
-            <Switch checked={values.hasOptions} onChange={(v) => set("hasOptions", v)} label="Chọn size / đường / đá" />
-          </label>
         </div>
+
+        {/* Khách được chọn gì khi gọi món này */}
+        <fieldset className="space-y-3 rounded-2xl border border-coffee-100 p-4 sm:col-span-2">
+          <legend className="px-1 text-sm font-semibold text-coffee-900">Khách được chọn</legend>
+          <Field label="Cách phục vụ" htmlFor="serve" hint="Chọn “Chỉ uống nóng” thì khách không thấy ô chọn đá">
+            <Select id="serve" value={values.serve} onChange={(e) => set("serve", e.target.value as Serve)}>
+              {SERVES.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {(
+              [
+                ["hasSize", "Size S / M / L", "M +6.000đ, L +10.000đ"],
+                ["hasSugar", "Mức đường", "100% → không đường"],
+                ["allowToppings", "Thêm topping", "Trân châu, thạch, pudding..."],
+              ] as const
+            ).map(([key, title, hint]) => (
+              <label key={key} className="flex cursor-pointer items-center justify-between gap-2 rounded-xl bg-coffee-50/60 p-3">
+                <div>
+                  <p className="text-sm font-medium text-coffee-900">{title}</p>
+                  <p className="text-xs text-coffee-500">{hint}</p>
+                </div>
+                <Switch checked={values[key]} onChange={(v) => set(key, v)} label={title} />
+              </label>
+            ))}
+          </div>
+        </fieldset>
       </form>
     </Modal>
   );

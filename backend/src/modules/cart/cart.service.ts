@@ -1,32 +1,37 @@
 import { pool } from "../../db/pool";
 import { AppError } from "../../utils/AppError";
+import { availableMap } from "../toppings/toppings.service";
 import type { AddItemInput, Cart, CartItem } from "./cart.schema";
-import { SIZES, normalizeOptions } from "./options";
+import { normalizeOptions, parseToppingIds, sizeExtra, type ProductOptionConfig } from "./options";
 
-// Phụ thu theo size tính ngay trong SQL (CASE) để giá luôn khớp với backend
-const SIZE_EXTRA_SQL = `(CASE c.size ${Object.entries(SIZES)
-  .map(([k, v]) => `WHEN '${k}' THEN ${v.extra}`)
-  .join(" ")} ELSE 0 END)`;
+const OPTION_COLUMNS = `p.has_size AS "hasSize", p.has_sugar AS "hasSugar", p.serve, p.allow_toppings AS "allowToppings"`;
 
-/** Lấy giỏ hàng: JOIN với products để luôn có giá / tồn kho mới nhất */
+/** Lấy giỏ hàng: JOIN với products để luôn có giá / tồn kho mới nhất; giá topping lấy theo bảng topping hiện tại */
 export async function getCart(userId: number): Promise<Cart> {
-  const { rows } = await pool.query<CartItem>(
-    `SELECT c.id, p.id AS "productId", p.slug, p.name, p.price, p.image, p.category, p.stock,
-            p.is_available AS "isAvailable", p.has_options AS "hasOptions",
-            c.size, c.sugar, c.ice, c.note, c.quantity,
-            p.price + ${SIZE_EXTRA_SQL} AS "unitPrice",
-            (p.price + ${SIZE_EXTRA_SQL}) * c.quantity AS "lineTotal"
-     FROM cart_items c
-     JOIN products p ON p.id = c.product_id
-     WHERE c.user_id = $1
-     ORDER BY c.created_at, c.id`,
-    [userId],
-  );
+  const [{ rows }, toppingMap] = await Promise.all([
+    pool.query<Omit<CartItem, "toppings" | "unitPrice" | "lineTotal"> & { toppingIds: string }>(
+      `SELECT c.id, p.id AS "productId", p.slug, p.name, p.price, p.image, p.category, p.stock,
+              p.is_available AS "isAvailable", ${OPTION_COLUMNS},
+              c.size, c.sugar, c.temp, c.ice, c.toppings AS "toppingIds", c.note, c.quantity
+       FROM cart_items c
+       JOIN products p ON p.id = c.product_id
+       WHERE c.user_id = $1
+       ORDER BY c.created_at, c.id`,
+      [userId],
+    ),
+    availableMap(),
+  ]);
 
-  const purchasable = rows.filter((i) => i.isAvailable && i.stock > 0);
+  const items: CartItem[] = rows.map(({ toppingIds, ...row }) => {
+    const toppings = parseToppingIds(toppingIds).flatMap((id) => toppingMap.get(id) ?? []);
+    const unitPrice = row.price + sizeExtra(row.size) + toppings.reduce((s, t) => s + t.price, 0);
+    return { ...row, toppings, unitPrice, lineTotal: unitPrice * row.quantity };
+  });
+
+  const purchasable = items.filter((i) => i.isAvailable && i.stock > 0);
   return {
-    items: rows,
-    totalQuantity: rows.reduce((sum, i) => sum + i.quantity, 0),
+    items,
+    totalQuantity: items.reduce((sum, i) => sum + i.quantity, 0),
     subtotal: purchasable.reduce((sum, i) => sum + i.lineTotal, 0),
   };
 }
@@ -41,8 +46,8 @@ async function quantityInCart(userId: number, productId: number, excludeLineId =
 }
 
 async function getProduct(productId: number) {
-  const { rows } = await pool.query<{ name: string; stock: number; isAvailable: boolean; hasOptions: boolean }>(
-    `SELECT name, stock, is_available AS "isAvailable", has_options AS "hasOptions" FROM products WHERE id = $1`,
+  const { rows } = await pool.query<{ name: string; stock: number; isAvailable: boolean } & ProductOptionConfig>(
+    `SELECT p.name, p.stock, p.is_available AS "isAvailable", ${OPTION_COLUMNS} FROM products p WHERE p.id = $1`,
     [productId],
   );
   if (!rows[0]) throw new AppError(404, "Không tìm thấy sản phẩm");
@@ -59,21 +64,22 @@ function assertPurchasable(product: { name: string; stock: number; isAvailable: 
 
 export async function addItem(userId: number, input: AddItemInput): Promise<Cart> {
   const product = await getProduct(input.productId);
-  const options = normalizeOptions(product.hasOptions, input);
+  const options = normalizeOptions(product, input, await availableMap());
 
   const existing = await pool.query<{ quantity: number }>(
-    "SELECT quantity FROM cart_items WHERE user_id = $1 AND product_id = $2 AND size = $3 AND sugar = $4 AND ice = $5 AND note = $6",
-    [userId, input.productId, options.size, options.sugar, options.ice, options.note],
+    `SELECT quantity FROM cart_items
+     WHERE user_id = $1 AND product_id = $2 AND size = $3 AND sugar = $4 AND temp = $5 AND ice = $6 AND toppings = $7 AND note = $8`,
+    [userId, input.productId, options.size, options.sugar, options.temp, options.ice, options.toppings, options.note],
   );
   if ((existing.rows[0]?.quantity ?? 0) + input.quantity > 99) throw new AppError(400, "Mỗi món tối đa 99 phần");
   assertPurchasable(product, (await quantityInCart(userId, input.productId)) + input.quantity);
 
   // Cùng món + cùng lựa chọn đã có trong giỏ → cộng dồn số lượng (UPSERT)
   await pool.query(
-    `INSERT INTO cart_items (user_id, product_id, size, sugar, ice, note, quantity) VALUES ($1, $2, $3, $4, $5, $6, $7)
-     ON CONFLICT (user_id, product_id, size, sugar, ice, note)
+    `INSERT INTO cart_items (user_id, product_id, size, sugar, temp, ice, toppings, note, quantity) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     ON CONFLICT (user_id, product_id, size, sugar, temp, ice, toppings, note)
      DO UPDATE SET quantity = cart_items.quantity + EXCLUDED.quantity, updated_at = NOW()`,
-    [userId, input.productId, options.size, options.sugar, options.ice, options.note, input.quantity],
+    [userId, input.productId, options.size, options.sugar, options.temp, options.ice, options.toppings, options.note, input.quantity],
   );
   return getCart(userId);
 }

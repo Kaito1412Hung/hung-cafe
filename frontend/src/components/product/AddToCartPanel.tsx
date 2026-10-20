@@ -5,19 +5,22 @@ import { Loader2, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { QuantityStepper } from "@/components/cart/QuantityStepper";
 import { useCartActions } from "@/hooks/useCartActions";
-import { DEFAULT_OPTIONS, sizeExtra, type ItemOptions } from "@/lib/options";
+import { useToppings } from "@/hooks/useToppings";
+import { defaultOptions, sizeExtra, type ItemOptions } from "@/lib/options";
 import { cn, formatPrice } from "@/lib/utils";
 import type { Product } from "@/types/product";
 import { OptionPicker } from "./OptionPicker";
 
 /**
- * Trạng thái khi chọn món (size / đường / đá / ghi chú / số lượng) + hàm thêm vào giỏ.
+ * Trạng thái khi chọn món (size / nóng-đá / đường / đá / topping / ghi chú / số lượng) + hàm thêm vào giỏ.
  * Tách ra hook để trang chi tiết và hộp thoại chọn nhanh dùng chung, nhưng bố trí giao diện khác nhau.
  */
 export function useAddToCart(product: Product, onAdded?: () => void) {
   const { addToCart, addingIds } = useCartActions();
   const [quantity, setQuantity] = useState(1);
-  const [options, setOptions] = useState<ItemOptions>(product.hasOptions ? DEFAULT_OPTIONS : { size: "", sugar: "", ice: "", note: "" });
+  const [options, setOptions] = useState<ItemOptions>(() => defaultOptions(product));
+  const toppings = useToppings(product.allowToppings);
+  const toppingPrice = options.toppings.reduce((sum, id) => sum + (toppings.find((t) => t.id === id)?.price ?? 0), 0);
 
   const add = async () => {
     const ok = await addToCart(product.id, product.name, quantity, { ...options, note: options.note.trim() });
@@ -32,11 +35,13 @@ export function useAddToCart(product: Product, onAdded?: () => void) {
     setQuantity,
     options,
     setOptions,
+    toppings,
     add,
     adding: addingIds.includes(product.id),
     soldOut: !product.isAvailable || product.stock === 0,
     max: Math.min(product.stock, 99),
-    total: (product.price + sizeExtra(options.size)) * quantity,
+    // Giá 1 phần = giá gốc + phụ thu size + topping (server tính lại khi thêm vào giỏ)
+    total: (product.price + sizeExtra(options.size) + toppingPrice) * quantity,
   };
 }
 
@@ -77,7 +82,7 @@ export function AddToCartPanel({ product }: { product: Product }) {
 
   return (
     <div className="space-y-5">
-      <OptionPicker value={state.options} onChange={state.setOptions} hasOptions={product.hasOptions} />
+      <OptionPicker value={state.options} onChange={state.setOptions} config={product} toppings={state.toppings} />
 
       <div className="flex items-center gap-4">
         <span className="text-sm font-medium text-coffee-800">Số lượng</span>

@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/Toast";
 import { useCategories } from "@/context/CategoriesContext";
 import { ApiError } from "@/lib/api";
 import { categoryService } from "@/services/categoryService";
+import { ToppingManager } from "@/components/admin/ToppingManager";
 import type { Category } from "@/types/category";
 
 /* ----- Form thêm / sửa (cha truyền key mới mỗi lần mở để reset) ----- */
@@ -184,6 +185,9 @@ export default function AdminCategoriesPage() {
           </div>
         )}
       </div>
+
+      {/* Topping dùng chung cho các món được bật "Thêm topping" */}
+      <ToppingManager />
 
       {editing && <CategoryFormModal key={editing.key} category={editing.category} nextOrder={nextOrder} onClose={() => setEditing(null)} onSaved={refresh} />}
 

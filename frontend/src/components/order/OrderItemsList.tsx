@@ -1,6 +1,6 @@
 import { ProductImage } from "@/components/ui/ProductImage";
 import { formatPrice } from "@/lib/utils";
-import { describeOptions } from "@/lib/options";
+import { describeOptions, describeToppings } from "@/lib/options";
 import type { Order } from "@/types/order";
 
 /** Danh sách món + tổng tiền của một đơn (dùng cho cả khách và admin) */
@@ -14,6 +14,7 @@ export function OrderItemsList({ order }: { order: Order }) {
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium text-coffee-950">{item.name}</p>
               {describeOptions(item) && <p className="text-xs text-coffee-600">{describeOptions(item)}</p>}
+              {item.toppings?.length > 0 && <p className="text-xs font-medium text-coffee-700">{describeToppings(item.toppings)}</p>}
               {item.note && <p className="truncate text-xs italic text-coffee-500">Ghi chú: {item.note}</p>}
               <p className="text-sm text-coffee-500">
                 {formatPrice(item.unitPrice)} × {item.quantity}

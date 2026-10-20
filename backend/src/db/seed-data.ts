@@ -1,8 +1,9 @@
 import type { ProductInput } from "../modules/products/products.schema";
+import type { ProductOptionConfig } from "../modules/cart/options";
 
 const unsplash = (id: string) => `https://images.unsplash.com/photo-${id}?w=800&q=80&auto=format&fit=crop`;
 
-type SeedProduct = Omit<ProductInput, "hasOptions">;
+type SeedProduct = Omit<ProductInput, keyof ProductOptionConfig>;
 
 /** 14 món đầu tiên của quán */
 const ORIGINAL_PRODUCTS: SeedProduct[] = [
@@ -205,5 +206,22 @@ const MORE_PRODUCTS: SeedProduct[] = [
 /** Dữ liệu sản phẩm mẫu được nạp vào DB bởi "npm run db:setup" (khi bảng món còn trống) */
 export const SEED_PRODUCTS: SeedProduct[] = [...ORIGINAL_PRODUCTS, ...MORE_PRODUCTS];
 
-/** Danh mục đồ ăn: không có chọn size / đường / đá */
-export const NO_OPTION_CATEGORIES = ["cake", "snack"];
+/* ---------- Tuỳ chọn mặc định của từng món ---------- */
+const FOOD_CATEGORIES = ["cake", "snack"];
+/** Món chỉ phục vụ nóng */
+const HOT_ONLY = ["Espresso", "Pour Over Cầu Đất", "Trà Gừng Mật Ong", "Trà Ô Long Nóng"];
+/** Món khách được chọn nóng hoặc đá */
+const HOT_OR_COLD = ["Americano", "Caffè Latte", "Cappuccino", "Flat White", "Cà Phê Trứng", "Matcha Latte"];
+/** Món không chia size (1 shot / 1 phễu) */
+const NO_SIZE = ["Espresso", "Pour Over Cầu Đất"];
+
+/** Cấu hình lựa chọn của 1 món mẫu: đồ ăn không có gì; đồ uống tuỳ món; trà sữa được thêm topping */
+export function optionConfigFor(p: SeedProduct): ProductOptionConfig {
+  const food = FOOD_CATEGORIES.includes(p.category);
+  return {
+    hasSize: !food && !NO_SIZE.includes(p.name),
+    hasSugar: !food,
+    serve: food ? "none" : HOT_ONLY.includes(p.name) ? "hot" : HOT_OR_COLD.includes(p.name) ? "both" : "cold",
+    allowToppings: p.category === "milktea",
+  };
+}
