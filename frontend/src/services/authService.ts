@@ -22,7 +22,8 @@ export const authService = {
   /** Lấy user hiện tại từ cookie; chưa đăng nhập thì trả null */
   async me(): Promise<User | null> {
     try {
-      const res = await api<{ user: User }>("/auth/me");
+      // Chưa đăng nhập: server trả { user: null } (không phải lỗi 401)
+      const res = await api<{ user: User | null }>("/auth/me");
       return res.user;
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) return null;

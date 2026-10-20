@@ -18,6 +18,7 @@ Website đặt đồ uống cho một quán cà phê: khách xem thực đơn, c
 - Tổng quan: doanh thu, số đơn, món bán chạy theo 7 / 30 / 90 ngày hoặc cả năm (biểu đồ theo tháng), xuất báo cáo Excel
 - Quản lý món (ảnh, tồn kho, lựa chọn của từng món), danh mục, topping
 - Quản lý đơn hàng (chia trang, lọc, tìm kiếm, in hoá đơn), khách hàng, mã giảm giá
+- Quản lý đánh giá: xem tất cả đánh giá, lọc theo số sao / món, tìm không dấu, xoá đánh giá không phù hợp
 - Hộp thư liên hệ, danh sách nhận tin, thông báo đơn mới, cài đặt cửa hàng (giờ mở cửa, phí giao)
 
 **Bảo mật cơ bản:** mật khẩu băm bcrypt, JWT trong cookie httpOnly, chống dò mật khẩu, giới hạn tần suất gửi form, helmet, kiểm tra dữ liệu bằng zod, đặt hàng trong transaction.

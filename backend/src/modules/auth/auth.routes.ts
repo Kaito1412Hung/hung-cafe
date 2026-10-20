@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAuth } from "../../middlewares/auth";
+import { optionalAuth, requireAuth } from "../../middlewares/auth";
 import { validateBody } from "../../middlewares/validate";
 import { rateLimit } from "../../middlewares/rateLimit";
 import * as controller from "./auth.controller";
@@ -26,7 +26,8 @@ authRouter.post("/logout-all", requireAuth, controller.logoutAll);
 authRouter.post("/forgot-password", forgotLimit, validateBody(forgotPasswordSchema), controller.forgotPassword);
 
 // Hồ sơ của chính mình
-authRouter.get("/me", requireAuth, controller.me);
+// Chưa đăng nhập vẫn trả 200 + { user: null } (thay vì 401) → Console trình duyệt không hiện dòng đỏ mỗi lần mở web
+authRouter.get("/me", optionalAuth, controller.me);
 authRouter.patch("/me", requireAuth, validateBody(updateProfileSchema), controller.updateProfile);
 authRouter.put("/me/avatar", requireAuth, validateBody(avatarSchema), controller.updateAvatar);
 authRouter.delete("/me", requireAuth, validateBody(deleteAccountSchema), controller.deleteAccount);

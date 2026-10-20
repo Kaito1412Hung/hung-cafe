@@ -24,7 +24,7 @@ schema      zod: kiểm tra dữ liệu gửi lên (sai → 400 kèm lỗi từn
 
 1. `POST /api/auth/login` → đúng mật khẩu thì backend tạo **JWT** và đặt vào cookie `token` (httpOnly: JavaScript trên trang không đọc được).
 2. Mỗi yêu cầu sau, `requireAuth` đọc cookie, kiểm tra JWT rồi **đọc lại role + `token_version` từ DB** → đổi quyền, xoá tài khoản, đổi mật khẩu có hiệu lực ngay.
-3. Mở web khi chưa đăng nhập, frontend hỏi `GET /api/auth/me` → nhận `401`. Đây là **bình thường** (Console hiện dòng đỏ, không phải lỗi).
+3. Mở web khi chưa đăng nhập, frontend hỏi `GET /api/auth/me` → server trả `200` + `{ user: null }` (không trả 401 để Console trình duyệt không hiện dòng đỏ). Các API cần đăng nhập khác vẫn trả `401` như cũ.
 
 ## Thêm vào giỏ → đặt hàng
 

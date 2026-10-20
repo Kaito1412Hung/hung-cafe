@@ -1,5 +1,4 @@
 import type { Request, Response } from "express";
-import { AppError } from "../../utils/AppError";
 import { AUTH_COOKIE, authCookieOptions, signToken } from "../../utils/jwt";
 import * as authService from "./auth.service";
 import { clientIp } from "../../middlewares/rateLimit";
@@ -27,10 +26,10 @@ export function logout(_req: Request, res: Response) {
   res.json({ message: "Đã đăng xuất" });
 }
 
+/** Người đang đăng nhập; chưa đăng nhập / phiên hết hạn → { user: null } */
 export async function me(req: Request, res: Response) {
-  const user = await authService.findById(req.user!.id);
-  if (!user) throw new AppError(401, "Tài khoản không còn tồn tại");
-  res.json({ user });
+  if (!req.user) return res.json({ user: null });
+  res.json({ user: await authService.findById(req.user.id) });
 }
 
 export async function updateProfile(req: Request, res: Response) {

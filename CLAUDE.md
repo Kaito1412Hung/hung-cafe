@@ -13,7 +13,7 @@ Chủ project đang **học web cơ bản** → giải thích từng bước, d�
 - **Giữ nguyên dữ liệu demo** (10 khách demo, ~300 đơn năm 2026, đánh giá, mã CHAOBANMOI / GIAM10 / GIAM15K).
 - **Không commit / push** khi chưa được kêu. Không bao giờ commit `.env`. `HUONG-DAN-TEST.md` không đưa lên git (đã có trong `.gitignore`).
 - **Không ghi mật khẩu trong chat** → chỉ chỗ: dòng `SEED_ADMIN_PASSWORD` / `SEED_CUSTOMER_PASSWORD` / `SEED_DEMO_PASSWORD` trong `backend/.env` (mật khẩu là phần sau dấu `=`).
-- Chức năng mới xong → bổ sung cách test vào `HUONG-DAN-TEST.md`.
+- Chức năng mới xong → bổ sung cách test vào `HUONG-DAN-TEST.md`, cuối mỗi phần có khối **📂 Code liên quan** liệt kê file đã thêm (ghi "(mới)") / sửa, để chủ project mở ra đọc.
 
 ## Công nghệ
 

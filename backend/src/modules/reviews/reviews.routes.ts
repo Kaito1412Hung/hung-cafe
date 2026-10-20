@@ -1,5 +1,5 @@
 import { Router, type Request } from "express";
-import { optionalAuth, requireAuth } from "../../middlewares/auth";
+import { optionalAuth, requireAuth, requireRole } from "../../middlewares/auth";
 import { rateLimit } from "../../middlewares/rateLimit";
 import { validateBody } from "../../middlewares/validate";
 import { AppError } from "../../utils/AppError";
@@ -12,6 +12,31 @@ function parseId(value: unknown, label = "ID") {
   if (!Number.isInteger(id) || id <= 0) throw new AppError(400, `${label} không hợp lệ`);
   return id;
 }
+
+/** Số nguyên dương trong query (?page=2), sai / thiếu → undefined */
+function intParam(value: unknown) {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : undefined;
+}
+
+// Admin: tất cả đánh giá, lọc ?rating=1..5&productId=&search=&hasComment=1&id=&sort=newest|lowest&page=&pageSize=
+reviewsRouter.get("/", requireAuth, requireRole("admin"), async (req, res) => {
+  const q = req.query;
+  const rating = intParam(q.rating);
+  const page = intParam(q.page) ?? 1;
+  const pageSize = Math.min(intParam(q.pageSize) ?? 10, 50);
+  const result = await reviewService.listForAdmin({
+    rating: rating && rating <= 5 ? rating : undefined,
+    productId: intParam(q.productId),
+    id: intParam(q.id),
+    search: typeof q.search === "string" && q.search.trim() ? q.search.trim().slice(0, 100) : undefined,
+    hasComment: q.hasComment === "1",
+    sort: q.sort === "lowest" ? "lowest" : "newest",
+    page,
+    pageSize,
+  });
+  res.json({ data: result.reviews, total: result.total, page, pageSize, summary: result.summary });
+});
 
 // Công khai: đánh giá nổi bật cho trang chủ
 reviewsRouter.get("/featured", async (_req, res) => {

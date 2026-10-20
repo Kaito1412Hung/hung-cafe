@@ -29,7 +29,7 @@ npm run dev                 # http://localhost:4000
 | POST   | `/api/auth/register` | Ai cũng được | Đăng ký (luôn là `customer`)           |
 | POST   | `/api/auth/login`    | Ai cũng được | Đăng nhập, set cookie `token`          |
 | POST   | `/api/auth/logout`   | Ai cũng được | Xoá cookie                             |
-| GET    | `/api/auth/me`       | Đã đăng nhập | Thông tin người đang đăng nhập         |
+| GET    | `/api/auth/me`       | Ai cũng được | Người đang đăng nhập; chưa đăng nhập → `{ user: null }` |
 | GET    | `/api/products`      | Ai cũng được | Danh sách (`?category=tea&search=trà`) |
 | GET    | `/api/products/slug/:slug` | Ai cũng được | Chi tiết theo đường dẫn đẹp (`ca-phe-sua-da`) |
 | GET    | `/api/products/:id`  | Ai cũng được | Chi tiết                               |
@@ -69,6 +69,7 @@ npm run dev                 # http://localhost:4000
 | GET / POST / PATCH / DELETE | `/api/coupons(/:id)` | **Admin** | Quản lý mã giảm giá (%, số tiền, đơn tối thiểu, số lượt, hạn dùng, chỉ đơn đầu) |
 | GET    | `/api/reviews/product/:productId`| Ai cũng được | Đánh giá của 1 món + điểm TB (đăng nhập thì biết mình được đánh giá không) |
 | GET    | `/api/reviews/featured`          | Ai cũng được | 3 đánh giá 4–5 sao mới nhất cho trang chủ |
+| GET    | `/api/reviews`                   | **Admin**    | Tất cả đánh giá (`?rating=1..5&search=&productId=&hasComment=1&sort=newest\|lowest&page=&pageSize=`), tìm không dấu, kèm thống kê số sao |
 | GET    | `/api/reviews/mine`              | Đã đăng nhập | Các món mình đã đánh giá               |
 | POST   | `/api/reviews`                   | Đã đăng nhập | Viết / sửa đánh giá `{ productId, rating, comment }` — chỉ khi đã nhận món (đơn hoàn thành) |
 | DELETE | `/api/reviews/:id`               | Người viết / Admin | Xoá đánh giá                     |

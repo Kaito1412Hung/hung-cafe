@@ -80,7 +80,7 @@ export async function upsert(userId: number, input: ReviewInput): Promise<Review
       type: "new_review",
       title: `${"★".repeat(input.rating)} ${products[0].name}`,
       message: `${users[0]?.name ?? "Khách"}: ${input.comment || "(không có nhận xét)"}`.slice(0, 255),
-      link: `/menu/${products[0].slug}#danh-gia`,
+      link: `/admin/reviews?review=${rows[0].id}`,
     });
   }
 
@@ -117,4 +117,98 @@ export async function listFeatured(limit = 3) {
     [limit],
   );
   return rows;
+}
+
+/* ================= Admin: trang quản lý đánh giá ================= */
+
+// Bỏ dấu tiếng Việt ngay trong SQL để tìm "ca phe" vẫn ra "Cà Phê" (giống ô tìm món ở frontend)
+const VN_FROM = "àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ";
+const VN_TO = "aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd";
+const unaccent = (sql: string) => `translate(lower(${sql}), '${VN_FROM}', '${VN_TO}')`;
+const unaccentJs = (text: string) =>
+  text
+    .toLowerCase()
+    .split("")
+    .map((ch) => {
+      const i = VN_FROM.indexOf(ch);
+      return i >= 0 ? VN_TO[i] : ch;
+    })
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
+
+export interface AdminReviewFilters {
+  rating?: number;
+  productId?: number;
+  search?: string;
+  /** Chỉ lấy đánh giá có viết nhận xét */
+  hasComment?: boolean;
+  /** Xem đúng 1 đánh giá (bấm từ chuông thông báo) */
+  id?: number;
+  sort?: "newest" | "lowest";
+  page: number;
+  pageSize: number;
+}
+
+export interface AdminReview extends Review {
+  authorEmail: string;
+  productName: string;
+  productSlug: string;
+  productImage: string;
+}
+
+/** Danh sách đánh giá cho admin: lọc + chia trang ở server, kèm thống kê số sao (không tính bộ lọc sao để các thanh 1★…5★ luôn đủ) */
+export async function listForAdmin(f: AdminReviewFilters) {
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+  const add = (sql: (n: number) => string, value: unknown) => {
+    values.push(value);
+    conditions.push(sql(values.length));
+  };
+
+  if (f.id) add((n) => `r.id = $${n}`, f.id);
+  if (f.productId) add((n) => `r.product_id = $${n}`, f.productId);
+  if (f.hasComment) conditions.push(`r.comment <> ''`);
+  if (f.search) {
+    add(
+      (n) => `(${unaccent("p.name")} LIKE $${n} OR ${unaccent("u.name")} LIKE $${n} OR ${unaccent("u.nickname")} LIKE $${n}
+               OR lower(u.email) LIKE $${n} OR ${unaccent("r.comment")} LIKE $${n})`,
+      // Thoát ký tự đặc biệt của LIKE (% _ \) để khách gõ "50%" không bị hiểu là "bất kỳ"
+      `%${unaccentJs(f.search).replace(/[%_\\]/g, (c) => `\\${c}`)}%`,
+    );
+  }
+
+  const from = `FROM reviews r JOIN users u ON u.id = r.user_id JOIN products p ON p.id = r.product_id`;
+  const baseWhere = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  // Bộ lọc số sao chỉ áp cho danh sách, không áp cho thống kê
+  const listValues = [...values];
+  let listWhere = baseWhere;
+  if (f.rating) {
+    listValues.push(f.rating);
+    listWhere = `${baseWhere ? `${baseWhere} AND` : "WHERE"} r.rating = $${listValues.length}`;
+  }
+  const order = f.sort === "lowest" ? "r.rating ASC, r.created_at DESC" : "r.created_at DESC";
+
+  const [list, total, stats] = await Promise.all([
+    pool.query<AdminReview>(
+      `SELECT ${COLUMNS}, u.email AS "authorEmail", p.name AS "productName", p.slug AS "productSlug", p.image AS "productImage"
+       ${from} ${listWhere}
+       ORDER BY ${order}, r.id DESC
+       LIMIT $${listValues.length + 1} OFFSET $${listValues.length + 2}`,
+      [...listValues, f.pageSize, (f.page - 1) * f.pageSize],
+    ),
+    pool.query<{ count: number }>(`SELECT COUNT(*)::int AS count ${from} ${listWhere}`, listValues),
+    pool.query<{ rating: number; count: number }>(`SELECT r.rating, COUNT(*)::int AS count ${from} ${baseWhere} GROUP BY r.rating`, values),
+  ]);
+
+  const breakdown: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  for (const r of stats.rows) breakdown[r.rating] = r.count;
+  const count = Object.values(breakdown).reduce((a, b) => a + b, 0);
+  const sum = Object.entries(breakdown).reduce((a, [star, n]) => a + Number(star) * n, 0);
+
+  return {
+    reviews: list.rows,
+    total: total.rows[0].count,
+    summary: { average: count ? Math.round((sum / count) * 10) / 10 : null, count, breakdown },
+  };
 }

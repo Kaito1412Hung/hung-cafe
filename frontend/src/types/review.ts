@@ -22,3 +22,32 @@ export interface FeaturedReview extends Review {
   productName: string;
   productSlug: string;
 }
+
+/** Một dòng ở trang quản lý đánh giá (admin) */
+export interface AdminReview extends Review {
+  authorEmail: string;
+  productName: string;
+  productSlug: string;
+  productImage: string;
+}
+
+export interface AdminReviewFilters {
+  rating?: number;
+  productId?: number;
+  search?: string;
+  hasComment?: boolean;
+  /** Xem đúng 1 đánh giá (bấm từ chuông thông báo) */
+  id?: number;
+  sort?: "newest" | "lowest";
+  page: number;
+  pageSize: number;
+}
+
+export interface AdminReviewPage {
+  data: AdminReview[];
+  total: number;
+  page: number;
+  pageSize: number;
+  /** Thống kê số sao theo bộ lọc hiện tại (không tính bộ lọc số sao) */
+  summary: ProductReviews["summary"];
+}
