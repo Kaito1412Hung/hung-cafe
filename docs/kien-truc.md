@@ -1,0 +1,50 @@
+# Các phần nối với nhau thế nào
+
+## Đường đi của 1 yêu cầu
+
+```
+Trình duyệt ──> Next.js (cổng 3000) ──/api/*──> Express (cổng 4000) ──> PostgreSQL
+                 trang + giao diện        (next.config.ts chuyển tiếp)
+```
+
+Vì Next.js chuyển tiếp `/api/*`, trình duyệt chỉ thấy 1 địa chỉ → cookie đăng nhập dùng chung, không vướng CORS.
+
+**Bên frontend:** trang / component → `hooks/` hoặc `context/` → `services/xxxService.ts` (gọi `fetch`) → API.
+
+**Bên backend**, mỗi module trong `backend/src/modules/` chia 4 lớp:
+
+```
+routes      URL + middleware (requireAuth, requireRole("admin"), validateBody)
+  └─> controller   đọc request, trả response
+        └─> service      logic + câu SQL
+schema      zod: kiểm tra dữ liệu gửi lên (sai → 400 kèm lỗi từng ô)
+```
+
+## Đăng nhập
+
+1. `POST /api/auth/login` → đúng mật khẩu thì backend tạo **JWT** và đặt vào cookie `token` (httpOnly: JavaScript trên trang không đọc được).
+2. Mỗi yêu cầu sau, `requireAuth` đọc cookie, kiểm tra JWT rồi **đọc lại role + `token_version` từ DB** → đổi quyền, xoá tài khoản, đổi mật khẩu có hiệu lực ngay.
+3. Mở web khi chưa đăng nhập, frontend hỏi `GET /api/auth/me` → nhận `401`. Đây là **bình thường** (Console hiện dòng đỏ, không phải lỗi).
+
+## Thêm vào giỏ → đặt hàng
+
+1. Khách chọn món + lựa chọn → `POST /api/cart/items`. Backend dùng `cart/options.ts` để **chuẩn hoá** lựa chọn theo cấu hình món (VD món chỉ uống nóng thì bỏ lượng đá, topping sắp theo id). Cùng món + cùng lựa chọn → cộng dồn số lượng; khác → dòng mới.
+2. Giá 1 ly = giá món + phụ thu size + tổng giá topping, **tính ở backend** (không tin giá frontend gửi lên).
+3. `POST /api/orders` chạy trong **1 transaction**: khoá các món → kiểm tra còn bán, đủ tồn kho, topping còn bán → kiểm tra mã giảm giá → tạo đơn + bản chụp món → trừ kho → xoá giỏ → tạo thông báo cho admin. Lỗi ở bước nào cũng huỷ toàn bộ.
+
+## Thông báo
+
+- Đơn mới, khách huỷ đơn, món sắp hết, khách mới đăng ký, tin nhắn liên hệ → thông báo cho **mọi admin**.
+- Admin đổi trạng thái đơn → thông báo cho **khách** của đơn đó.
+- Frontend hỏi lại `GET /api/notifications` mỗi 30 giây (chưa dùng thời gian thực).
+
+## Chia trang
+
+- Khách: `GET /api/orders/my?limit=10&offset=0` → `{ data, total }`, nút "Xem thêm đơn cũ hơn" tăng `offset`.
+- Admin: `GET /api/orders?page=1&pageSize=10&status=&search=` → `{ data, total, page, pageSize, summary }`.
+
+## Dữ liệu mẫu
+
+- `npm run db:setup` = `schema.ts` (tạo / nâng cấp bảng) + `seed.ts` (45 món, 7 danh mục, 6 topping, 2 tài khoản mẫu).
+- Ảnh món tải lên nằm trong `backend/uploads/` (không đưa lên git).
+- Khách demo, đơn hàng năm 2026, đánh giá... **chỉ có trong database trên máy**, không nằm trên GitHub.
