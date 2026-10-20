@@ -73,3 +73,17 @@ export function getOpenStatus(settings: ShopSettings, now = new Date()): OpenSta
     message: isOpen ? `Đang mở cửa · đóng lúc ${todayClose}` : `Quán đã đóng cửa · mở lại lúc ${todayOpen}`,
   };
 }
+
+/**
+ * Giờ hẹn nhận có nằm trong giờ mở cửa của ngày đó không (tính theo giờ Việt Nam).
+ * Khác getOpenStatus ở chỗ cho hẹn đúng giờ đóng cửa (VD đóng 22:00 vẫn hẹn được 22:00).
+ */
+export function isWithinOpeningHours(settings: ShopSettings, at: Date) {
+  const { minutes, isWeekend } = nowInVietnam(at);
+  const openAt = isWeekend ? settings.weekendOpen : settings.weekdayOpen;
+  const closeAt = isWeekend ? settings.weekendClose : settings.weekdayClose;
+  const open = toMinutes(openAt);
+  const close = toMinutes(closeAt);
+  const ok = open === close || (open < close ? minutes >= open && minutes <= close : minutes >= open || minutes <= close);
+  return { ok, openAt, closeAt };
+}

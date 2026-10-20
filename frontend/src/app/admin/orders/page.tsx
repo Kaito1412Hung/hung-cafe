@@ -6,8 +6,9 @@ import { Clock, PackageCheck, Receipt, Search, Truck, Wallet } from "lucide-reac
 import { useToast } from "@/components/ui/Toast";
 import { Pagination } from "@/components/admin/Pagination";
 import { OrderDetailModal } from "@/components/admin/OrderDetailModal";
+import { FulfillmentTag } from "@/components/order/FulfillmentTag";
 import { OrderStatusBadge } from "@/components/order/OrderStatusBadge";
-import { ORDER_STATUS, ORDER_STATUS_LIST, formatDateTime, formatOrderCode } from "@/lib/orders";
+import { ORDER_STATUS, ORDER_STATUS_LIST, formatDateTime, formatOrderCode, statusLabel } from "@/lib/orders";
 import { cn, formatPrice } from "@/lib/utils";
 import { orderService } from "@/services/orderService";
 import type { Order, OrderStatus, OrderSummary } from "@/types/order";
@@ -109,7 +110,7 @@ function AdminOrders() {
         const revenue = prev.summary.revenue + (next === "completed" ? updated.total : 0);
         return { ...prev, orders: prev.orders.map((o) => (o.id === updated.id ? updated : o)), summary: { ...prev.summary, counts, revenue } };
       });
-      toast(`${formatOrderCode(order.id)}: ${ORDER_STATUS[next].label}`, next === "cancelled" ? "info" : "success");
+      toast(`${formatOrderCode(order.id)}: ${statusLabel(next, order.fulfillment)}`, next === "cancelled" ? "info" : "success");
     } catch (err) {
       toast((err as Error).message, "error");
     }
@@ -233,7 +234,8 @@ function AdminOrders() {
                           </td>
                           <td className="px-4 py-4 text-sm font-semibold text-coffee-950">{formatPrice(o.total)}</td>
                           <td className="px-4 py-4">
-                            <OrderStatusBadge status={o.status} />
+                            <OrderStatusBadge status={o.status} fulfillment={o.fulfillment} />
+                            <FulfillmentTag order={o} className="mt-1.5" />
                           </td>
                           <td className="px-4 py-4 text-sm text-coffee-500">{formatDateTime(o.createdAt)}</td>
                           <td className="px-6 py-4 text-right">

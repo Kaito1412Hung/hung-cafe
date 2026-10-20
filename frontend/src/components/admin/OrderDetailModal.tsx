@@ -1,14 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, Mail, MapPin, Phone, Printer, StickyNote, X } from "lucide-react";
+import { ArrowRight, Mail, MapPin, Phone, Printer, StickyNote, Store, X } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { OrderItemsList } from "@/components/order/OrderItemsList";
 import { OrderProgress } from "@/components/order/OrderProgress";
+import { FulfillmentTag } from "@/components/order/FulfillmentTag";
 import { OrderStatusBadge } from "@/components/order/OrderStatusBadge";
 import { CancelReasonPicker } from "@/components/order/CancelReasonPicker";
-import { ADMIN_CANCEL_REASONS, CANCELLABLE, NEXT_STEP, formatDateTime, formatOrderCode } from "@/lib/orders";
+import { ADMIN_CANCEL_REASONS, CANCELLABLE, formatDateTime, formatOrderCode, nextStep } from "@/lib/orders";
 import type { Order, OrderStatus } from "@/types/order";
 
 interface OrderDetailModalProps {
@@ -24,7 +25,7 @@ export function OrderDetailModal({ order, onClose, onChangeStatus }: OrderDetail
 
   if (!order) return null;
 
-  const next = NEXT_STEP[order.status];
+  const next = nextStep(order.status, order.fulfillment);
   const canCancel = CANCELLABLE.includes(order.status);
 
   const change = async (status: OrderStatus) => {
@@ -98,9 +99,10 @@ export function OrderDetailModal({ order, onClose, onChangeStatus }: OrderDetail
         )}
         <div className="flex items-center justify-between gap-3">
           <span className="text-sm text-coffee-600">Trạng thái hiện tại</span>
-          <OrderStatusBadge status={order.status} />
+          <OrderStatusBadge status={order.status} fulfillment={order.fulfillment} />
         </div>
-        <OrderProgress order={order} />
+        <FulfillmentTag order={order} />
+        <OrderProgress order={order} forAdmin />
 
         <div className="grid gap-3 rounded-2xl bg-coffee-50 p-4 text-sm text-coffee-800 sm:grid-cols-2">
           <p className="font-semibold text-coffee-950 sm:col-span-2">{order.customerName}</p>
@@ -114,9 +116,15 @@ export function OrderDetailModal({ order, onClose, onChangeStatus }: OrderDetail
             <Mail className="mt-0.5 h-4 w-4 shrink-0 text-coffee-500" />
             <span className="truncate">{order.userEmail ?? "Tài khoản đã xoá"}</span>
           </p>
-          <p className="flex gap-2 sm:col-span-2">
-            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-coffee-500" /> {order.address}
-          </p>
+          {order.fulfillment === "pickup" ? (
+            <p className="flex gap-2 sm:col-span-2">
+              <Store className="mt-0.5 h-4 w-4 shrink-0 text-coffee-500" /> Khách đến quán lấy
+            </p>
+          ) : (
+            <p className="flex gap-2 sm:col-span-2">
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-coffee-500" /> {order.address}
+            </p>
+          )}
           {order.note && (
             <p className="flex gap-2 sm:col-span-2">
               <StickyNote className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />

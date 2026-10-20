@@ -2,16 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Clock, Loader2, ShieldCheck, Trash2, Truck } from "lucide-react";
+import { ArrowLeft, Bike, Clock, Loader2, ShieldCheck, Store, Trash2, Truck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { useCartActions } from "@/hooks/useCartActions";
 import { useShopSettings } from "@/context/ShopSettingsContext";
-import { formatPrice } from "@/lib/utils";
+import { FULFILLMENT } from "@/lib/orders";
+import { cn, formatPrice } from "@/lib/utils";
 import { couponService } from "@/services/couponService";
 import type { AppliedCoupon } from "@/types/coupon";
+import type { Fulfillment } from "@/types/order";
 import { CartItemRow } from "./CartItemRow";
 import { CheckoutModal } from "./CheckoutModal";
 import { CouponBox } from "./CouponBox";
@@ -24,12 +26,15 @@ export function CartView() {
   const [checkoutKey, setCheckoutKey] = useState(0);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [coupon, setCoupon] = useState<AppliedCoupon | null>(null);
+  const [fulfillment, setFulfillment] = useState<Fulfillment>("delivery");
   const toast = useToast();
 
   const { settings, openStatus, getShippingFee } = useShopSettings();
   // Ngoài giờ mở cửa / tạm ngưng nhận đơn → khoá nút đặt hàng (backend cũng chặn)
   const isClosed = openStatus !== null && !openStatus.isOpen;
-  const shipping = getShippingFee(cart.subtotal);
+  // Đến quán lấy → không tính phí giao (backend cũng tính như vậy)
+  const pickup = fulfillment === "pickup";
+  const shipping = pickup ? 0 : getShippingFee(cart.subtotal);
   const discount = coupon?.discount ?? 0;
   const total = cart.subtotal - discount + shipping;
 
@@ -105,21 +110,53 @@ export function CartView() {
         <aside className="h-fit space-y-5 rounded-3xl bg-white p-5 sm:p-6 shadow-sm ring-1 ring-coffee-100 lg:sticky lg:top-24">
           <h2 className="font-display text-xl font-semibold text-coffee-950">Tóm tắt đơn hàng</h2>
 
-          <div className="rounded-2xl bg-coffee-50 p-4">
-            <p className="flex items-center gap-2 text-sm text-coffee-800">
-              <Truck className="h-4 w-4 text-coffee-500" />
-              {remainingForFree > 0 ? (
-                <span>
-                  Mua thêm <strong>{formatPrice(remainingForFree)}</strong> để được miễn phí giao hàng
-                </span>
-              ) : (
-                <span className="font-medium text-emerald-700">Bạn được miễn phí giao hàng!</span>
+          {/* Hình thức nhận */}
+          <div>
+            <p className="mb-2 text-sm font-medium text-coffee-900">Hình thức nhận</p>
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Hình thức nhận">
+              {(["delivery", "pickup"] as const).map((f) => {
+                const Icon = f === "delivery" ? Bike : Store;
+                const active = fulfillment === f;
+                return (
+                  <button
+                    key={f}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setFulfillment(f)}
+                    className={cn(
+                      "flex cursor-pointer flex-col items-start gap-1 rounded-2xl p-3 text-left ring-1 transition",
+                      active ? "bg-coffee-900 text-cream ring-coffee-900" : "bg-white text-coffee-800 ring-coffee-200 hover:bg-coffee-50",
+                    )}
+                  >
+                    <span className="flex items-center gap-1.5 text-sm font-semibold">
+                      <Icon className="h-4 w-4" /> {FULFILLMENT[f].label}
+                    </span>
+                    <span className={cn("text-xs", active ? "text-coffee-200" : "text-coffee-500")}>{FULFILLMENT[f].hint}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {pickup && <p className="mt-2 text-xs text-coffee-600">📍 Lấy tại: {settings.address}</p>}
+          </div>
+
+          {!pickup && (
+            <div className="rounded-2xl bg-coffee-50 p-4">
+              <p className="flex items-center gap-2 text-sm text-coffee-800">
+                <Truck className="h-4 w-4 text-coffee-500" />
+                {remainingForFree > 0 ? (
+                  <span>
+                    Mua thêm <strong>{formatPrice(remainingForFree)}</strong> để được miễn phí giao hàng
+                  </span>
+                ) : (
+                  <span className="font-medium text-emerald-700">Bạn được miễn phí giao hàng!</span>
               )}
             </p>
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-coffee-200">
               <div className="h-full rounded-full bg-coffee-700 transition-all duration-500" style={{ width: `${progress}%` }} />
             </div>
           </div>
+          )}
 
           <CouponBox applied={coupon} onChange={applyCoupon} subtotal={cart.subtotal} />
 
@@ -136,7 +173,7 @@ export function CartView() {
             )}
             <div className="flex justify-between">
               <dt className="text-coffee-600">Phí giao hàng</dt>
-              <dd className="font-medium text-coffee-950">{shipping === 0 ? "Miễn phí" : formatPrice(shipping)}</dd>
+              <dd className="font-medium text-coffee-950">{pickup ? "Không có (đến quán lấy)" : shipping === 0 ? "Miễn phí" : formatPrice(shipping)}</dd>
             </div>
             <div className="flex items-end justify-between border-t border-coffee-100 pt-4">
               <dt className="font-semibold text-coffee-950">Tổng cộng</dt>
@@ -188,6 +225,7 @@ export function CartView() {
         key={checkoutKey}
         open={checkoutOpen}
         total={total}
+        fulfillment={fulfillment}
         couponCode={coupon?.code ?? ""}
         onCouponInvalid={() => setCoupon(null)}
         onClose={() => setCheckoutOpen(false)}

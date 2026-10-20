@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CircleCheckBig, Loader2, MapPin, Phone, RotateCcw, Star } from "lucide-react";
+import { CircleCheckBig, Loader2, MapPin, Phone, RotateCcw, Star, Store } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { EmptyCart } from "@/components/cart/EmptyCart";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
+import { useShopSettings } from "@/context/ShopSettingsContext";
 import { CUSTOMER_CANCEL_REASONS, formatDateTime, formatOrderCode } from "@/lib/orders";
 import { ReviewModal } from "@/components/review/ReviewModal";
 import { reviewService } from "@/services/reviewService";
@@ -18,6 +19,7 @@ import type { Order } from "@/types/order";
 import { CancelReasonPicker } from "./CancelReasonPicker";
 import { OrderItemsList } from "./OrderItemsList";
 import { OrderProgress } from "./OrderProgress";
+import { FulfillmentTag } from "./FulfillmentTag";
 import { OrderStatusBadge } from "./OrderStatusBadge";
 
 /** Số đơn mỗi lần tải (bấm "Xem thêm" để tải tiếp) */
@@ -30,6 +32,7 @@ const mergeOrders = (prev: Order[], more: Order[]) =>
 export function MyOrders() {
   const { user, loading: authLoading } = useAuth();
   const toast = useToast();
+  const { settings } = useShopSettings();
   const newOrderId = Number(useSearchParams().get("new")) || null;
 
   const { reloadCart, openCart } = useCart();
@@ -175,8 +178,9 @@ export function MyOrders() {
               <div>
                 <p className="font-display text-lg font-semibold text-coffee-950">Đơn {formatOrderCode(order.id)}</p>
                 <p className="text-sm text-coffee-500">Đặt lúc {formatDateTime(order.createdAt)}</p>
+                <FulfillmentTag order={order} className="mt-1.5" />
               </div>
-              <OrderStatusBadge status={order.status} />
+              <OrderStatusBadge status={order.status} fulfillment={order.fulfillment} />
             </div>
 
             <div className="mt-6">
@@ -190,9 +194,15 @@ export function MyOrders() {
                 <p className="flex gap-2">
                   <Phone className="mt-0.5 h-4 w-4 shrink-0 text-coffee-500" /> {order.phone}
                 </p>
-                <p className="flex gap-2">
-                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-coffee-500" /> {order.address}
-                </p>
+                {order.fulfillment === "pickup" ? (
+                  <p className="flex gap-2">
+                    <Store className="mt-0.5 h-4 w-4 shrink-0 text-coffee-500" /> Lấy tại quán: {settings.address}
+                  </p>
+                ) : (
+                  <p className="flex gap-2">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-coffee-500" /> {order.address}
+                  </p>
+                )}
                 {order.note && <p className="border-t border-coffee-200 pt-2 italic text-coffee-600">&ldquo;{order.note}&rdquo;</p>}
               </div>
             </div>

@@ -1,19 +1,20 @@
 import type { PoolClient } from "pg";
 import { pool } from "../../db/pool";
-import { calcShippingFee, getOpenStatus, getShopSettings } from "../settings/settings.service";
+import { calcShippingFee, getOpenStatus, getShopSettings, isWithinOpeningHours } from "../settings/settings.service";
+import type { ShopSettings } from "../settings/settings.schema";
 import { AppError } from "../../utils/AppError";
 import { LOW_STOCK_THRESHOLD, cleanup as cleanupNotifications, notifyAdmins, notifyUser } from "../notifications/notifications.service";
 import { evaluate as evaluateCoupon } from "../coupons/coupons.service";
 import { normalizeOptions, parseToppingIds, sizeExtra, type ProductOptionConfig } from "../cart/options";
 import { availableMap } from "../toppings/toppings.service";
-import { STATUS_LABELS, STATUS_TRANSITIONS, type CheckoutInput, type Order, type OrderStatus } from "./orders.schema";
+import { STATUS_LABELS, STATUS_TRANSITIONS, type CheckoutInput, type Fulfillment, type Order, type OrderStatus } from "./orders.schema";
 
 // Lấy đơn kèm danh sách món (json_agg gom các dòng order_items thành mảng JSON)
 const ORDER_SELECT = `
   SELECT o.id, o.user_id AS "userId", u.email AS "userEmail",
          o.customer_name AS "customerName", o.phone, o.address, o.note, o.status,
          o.subtotal, o.coupon_code AS "couponCode", o.discount, o.shipping_fee AS "shippingFee", o.total,
-         o.cancel_reason AS "cancelReason",
+         o.cancel_reason AS "cancelReason", o.fulfillment, o.scheduled_at AS "scheduledAt",
          o.created_at AS "createdAt", o.updated_at AS "updatedAt",
          o.confirmed_at AS "confirmedAt", o.shipping_at AS "shippingAt",
          o.completed_at AS "completedAt", o.cancelled_at AS "cancelledAt",
@@ -48,6 +49,30 @@ async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promi
 }
 
 const money = (v: number) => new Intl.NumberFormat("vi-VN").format(v) + "đ";
+
+const TIME_ZONE = "Asia/Ho_Chi_Minh";
+/** Ngày theo giờ Việt Nam, dạng "YYYY-MM-DD" */
+const vnDate = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE }).format(d);
+/** "15:00" (kèm " ngày mai" nếu là ngày mai) */
+function vnTime(d: Date, now = new Date()) {
+  const time = new Intl.DateTimeFormat("vi-VN", { timeZone: TIME_ZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d);
+  return vnDate(d) === vnDate(now) ? time : `${time} ngày mai`;
+}
+
+/**
+ * Kiểm tra giờ hẹn: chỉ hôm nay / ngày mai, trong giờ mở cửa,
+ * và không sớm hơn thời gian quán cần (pha chế, cộng thêm thời gian giao nếu giao tận nơi).
+ */
+function checkScheduledTime(at: Date, fulfillment: Fulfillment, settings: ShopSettings, now = new Date()) {
+  const fail = (message: string) => new AppError(400, message, { scheduledAt: message });
+  const leadMinutes = settings.prepMinutes + (fulfillment === "delivery" ? settings.deliveryMinutes : 0);
+  const earliest = new Date(now.getTime() + (leadMinutes - 1) * 60_000); // trừ 1 phút cho khách bấm chậm
+  if (at < earliest) throw fail(`Giờ hẹn sớm nhất là ${vnTime(new Date(now.getTime() + leadMinutes * 60_000), now)}`);
+  const tomorrow = vnDate(new Date(now.getTime() + 24 * 60 * 60_000));
+  if (vnDate(at) > tomorrow) throw fail("Chỉ hẹn được trong hôm nay hoặc ngày mai");
+  const hours = isWithinOpeningHours(settings, at);
+  if (!hours.ok) throw fail(`Giờ hẹn phải trong giờ mở cửa (${hours.openAt} – ${hours.closeAt})`);
+}
 const code = (id: number) => `#${String(id).padStart(5, "0")}`;
 
 /* ================= Khách hàng ================= */
@@ -57,6 +82,8 @@ export async function checkout(userId: number, input: CheckoutInput): Promise<Or
   const settings = await getShopSettings();
   const openStatus = getOpenStatus(settings);
   if (!openStatus.isOpen) throw new AppError(400, `${openStatus.message}. Bạn vui lòng đặt lại sau nhé!`);
+  const scheduledAt = input.scheduledAt ? new Date(input.scheduledAt) : null;
+  if (scheduledAt) checkScheduledTime(scheduledAt, input.fulfillment, settings);
 
   const orderId = await withTransaction(async (client) => {
     // FOR UPDATE: khoá các dòng sản phẩm để 2 người đặt cùng lúc không trừ kho sai
@@ -111,7 +138,8 @@ export async function checkout(userId: number, input: CheckoutInput): Promise<Or
       return { ...i, toppings, unitPrice, lineTotal: unitPrice * i.quantity };
     });
     const subtotal = lines.reduce((sum, i) => sum + i.lineTotal, 0);
-    const shippingFee = calcShippingFee(subtotal, settings);
+    // Đến quán lấy → không tính phí giao
+    const shippingFee = input.fulfillment === "pickup" ? 0 : calcShippingFee(subtotal, settings);
 
     // Mã giảm giá: kiểm tra lại trong transaction + khoá dòng mã để không vượt số lượt
     let discount = 0;
@@ -125,9 +153,9 @@ export async function checkout(userId: number, input: CheckoutInput): Promise<Or
     const total = subtotal - discount + shippingFee;
 
     const { rows } = await client.query<{ id: number }>(
-      `INSERT INTO orders (user_id, customer_name, phone, address, note, subtotal, coupon_code, discount, shipping_fee, total)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
-      [userId, input.customerName, input.phone, input.address, input.note, subtotal, couponCode, discount, shippingFee, total],
+      `INSERT INTO orders (user_id, customer_name, phone, address, note, subtotal, coupon_code, discount, shipping_fee, total, fulfillment, scheduled_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+      [userId, input.customerName, input.phone, input.address, input.note, subtotal, couponCode, discount, shippingFee, total, input.fulfillment, scheduledAt],
     );
     const newOrderId = rows[0].id;
 
@@ -179,7 +207,13 @@ export async function checkout(userId: number, input: CheckoutInput): Promise<Or
       {
         type: "new_order",
         title: `Đơn hàng mới ${code(newOrderId)}`,
-        message: `${input.customerName} đặt ${totalQty} món · ${money(total)}${couponCode ? ` (mã ${couponCode})` : ""}`,
+        message: [
+          `${input.customerName} đặt ${totalQty} món · ${money(total)}${couponCode ? ` (mã ${couponCode})` : ""}`,
+          input.fulfillment === "pickup" ? "Đến quán lấy" : "",
+          scheduledAt ? `Hẹn ${vnTime(scheduledAt)}` : "",
+        ]
+          .filter(Boolean)
+          .join(" · "),
         link: `/admin/orders?order=${newOrderId}`,
       },
       client,
@@ -259,6 +293,12 @@ export async function findById(id: number): Promise<Order> {
   return rows[0];
 }
 
+/** Đơn đến quán lấy: bước "shipping" = đã pha xong, chờ khách tới */
+const PICKUP_MESSAGES: Partial<Record<OrderStatus, { title: string; message: string }>> = {
+  shipping: { title: "đã pha xong", message: "Mời bạn đến quán lấy nhé ☕ Nhớ báo mã đơn cho nhân viên." },
+  completed: { title: "đã được nhận", message: "Cảm ơn bạn đã ghé Hưng Café! Đừng quên đánh giá món nhé ⭐" },
+};
+
 /** Nội dung báo cho khách khi admin đổi trạng thái đơn */
 const CUSTOMER_MESSAGES: Partial<Record<OrderStatus, { title: string; message: string }>> = {
   confirmed: { title: "đã được xác nhận", message: "Quán đang pha chế đồ uống cho bạn ☕" },
@@ -285,8 +325,8 @@ export async function changeStatus(
   { reason = "", notifyCustomer = true }: { reason?: string; notifyCustomer?: boolean } = {},
 ): Promise<Order> {
   await withTransaction(async (client) => {
-    const { rows } = await client.query<{ status: OrderStatus; userId: number | null; couponCode: string }>(
-      `SELECT status, user_id AS "userId", coupon_code AS "couponCode" FROM orders WHERE id = $1 FOR UPDATE`,
+    const { rows } = await client.query<{ status: OrderStatus; userId: number | null; couponCode: string; fulfillment: Fulfillment }>(
+      `SELECT status, user_id AS "userId", coupon_code AS "couponCode", fulfillment FROM orders WHERE id = $1 FOR UPDATE`,
       [id],
     );
     if (!rows[0]) throw new AppError(404, "Không tìm thấy đơn hàng");
@@ -316,7 +356,7 @@ export async function changeStatus(
       }
     }
 
-    const content = CUSTOMER_MESSAGES[next];
+    const content = (rows[0].fulfillment === "pickup" ? PICKUP_MESSAGES[next] : undefined) ?? CUSTOMER_MESSAGES[next];
     if (notifyCustomer && content && rows[0].userId) {
       await notifyUser(
         rows[0].userId,

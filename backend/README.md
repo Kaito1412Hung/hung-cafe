@@ -45,7 +45,7 @@ npm run dev                 # http://localhost:4000
 | PATCH  | `/api/cart/items/:lineId`        | Đã đăng nhập | Đổi số lượng 1 dòng `{ quantity }` (lineId = `id` của dòng trong giỏ) |
 | DELETE | `/api/cart/items/:lineId`        | Đã đăng nhập | Xoá 1 dòng khỏi giỏ                    |
 | DELETE | `/api/cart`                      | Đã đăng nhập | Xoá toàn bộ giỏ                        |
-| POST   | `/api/orders`                    | Đã đăng nhập | Đặt hàng từ giỏ `{ customerName, phone, address, note, couponCode? }` |
+| POST   | `/api/orders`                    | Đã đăng nhập | Đặt hàng từ giỏ `{ customerName, phone, address, note, couponCode?, fulfillment?: "delivery" \| "pickup", scheduledAt?: ISO }` — lấy tại quán thì không cần địa chỉ, không tính phí giao |
 | GET    | `/api/orders/my`                 | Đã đăng nhập | Đơn hàng của tôi                       |
 | PATCH  | `/api/orders/my/:id/cancel`      | Đã đăng nhập | Khách tự huỷ (chỉ khi "Chờ xác nhận"), lý do không bắt buộc `{ reason }` |
 | POST   | `/api/orders/my/:id/reorder`     | Đã đăng nhập | Mua lại: thêm các món của đơn cũ vào giỏ (bỏ qua món hết hàng) |

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Loader2, Printer } from "lucide-react";
 import { Button, buttonClass } from "@/components/ui/Button";
 import { useShopSettings } from "@/context/ShopSettingsContext";
-import { ORDER_STATUS, formatDateTime, formatOrderCode } from "@/lib/orders";
+import { FULFILLMENT, formatDateTime, formatOrderCode, statusLabel } from "@/lib/orders";
 import { formatPrice } from "@/lib/utils";
 import { describeOptions, describeToppings } from "@/lib/options";
 import { orderService } from "@/services/orderService";
@@ -75,8 +75,12 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-coffee-500">Hoá đơn bán hàng</p>
             <p className="mt-1 font-mono text-2xl font-bold text-coffee-950">{formatOrderCode(order.id)}</p>
             <p className="mt-1 text-sm text-coffee-600">{formatDateTime(order.createdAt)}</p>
-            <p className="mt-1 text-sm text-coffee-600">Trạng thái: {ORDER_STATUS[order.status].label}</p>
-            {order.completedAt && <p className="mt-1 text-sm text-coffee-600">Giao xong: {formatDateTime(order.completedAt)}</p>}
+            <p className="mt-1 text-sm text-coffee-600">Trạng thái: {statusLabel(order.status, order.fulfillment)}</p>
+            {order.completedAt && (
+              <p className="mt-1 text-sm text-coffee-600">
+                {order.fulfillment === "pickup" ? "Khách lấy lúc" : "Giao xong"}: {formatDateTime(order.completedAt)}
+              </p>
+            )}
             {order.cancelReason && <p className="mt-1 max-w-56 text-sm text-red-700">Lý do huỷ: {order.cancelReason}</p>}
           </div>
         </header>
@@ -87,8 +91,20 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
           <span className="font-semibold text-coffee-950">{order.customerName}</span>
           <span className="text-coffee-500">Điện thoại</span>
           <span>{order.phone}</span>
-          <span className="text-coffee-500">Giao đến</span>
-          <span>{order.address}</span>
+          <span className="text-coffee-500">Hình thức</span>
+          <span>{FULFILLMENT[order.fulfillment].label}</span>
+          {order.fulfillment === "delivery" && (
+            <>
+              <span className="text-coffee-500">Giao đến</span>
+              <span>{order.address}</span>
+            </>
+          )}
+          {order.scheduledAt && (
+            <>
+              <span className="text-coffee-500">Hẹn giờ</span>
+              <span className="font-semibold">{formatDateTime(order.scheduledAt)}</span>
+            </>
+          )}
           {order.note && (
             <>
               <span className="text-coffee-500">Ghi chú</span>

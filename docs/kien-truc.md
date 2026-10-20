@@ -40,6 +40,13 @@ schema      zod: kiểm tra dữ liệu gửi lên (sai → 400 kèm lỗi từn
   - Đang giao: giờ bắt đầu giao + `deliveryMinutes`
   - Hoàn thành / đã huỷ: không hiện
 
+## Giao tận nơi / đến quán lấy + hẹn giờ
+
+- Khách chọn hình thức ở giỏ hàng; `checkout` không tính phí giao và không lưu địa chỉ khi `fulfillment = "pickup"`.
+- Giờ hẹn (`scheduledAt`) do `checkScheduledTime` kiểm tra: chỉ hôm nay / ngày mai, trong giờ mở cửa (`isWithinOpeningHours`), không sớm hơn thời gian pha chế (+ thời gian giao nếu giao tận nơi).
+- Frontend tạo sẵn danh sách giờ mỗi 15 phút (`scheduleOptions` trong `lib/orders.ts`); backend vẫn kiểm tra lại.
+- "Dự kiến … lúc" ưu tiên giờ hẹn; đơn lấy tại quán đã pha xong thì không hiện dự kiến nữa.
+
 ## Thống kê
 
 - `GET /api/admin/stats?days=7|30|90` → biểu đồ theo ngày; `?year=2026` → biểu đồ theo tháng.

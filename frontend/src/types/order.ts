@@ -32,6 +32,10 @@ export interface Order {
   cancelReason: string;
   createdAt: string;
   updatedAt: string;
+  /** Giao tận nơi / khách đến quán lấy */
+  fulfillment: Fulfillment;
+  /** Giờ hẹn nhận (null = càng sớm càng tốt) */
+  scheduledAt: string | null;
   /** Giờ của từng bước (null = chưa tới bước đó) */
   confirmedAt: string | null;
   shippingAt: string | null;
@@ -40,12 +44,18 @@ export interface Order {
   items: OrderItem[];
 }
 
+export type Fulfillment = "delivery" | "pickup";
+
 export interface CheckoutInput {
   customerName: string;
   phone: string;
+  /** Đến quán lấy thì để trống */
   address: string;
   note: string;
   couponCode?: string;
+  fulfillment: Fulfillment;
+  /** Giờ hẹn (ISO), null = càng sớm càng tốt */
+  scheduledAt: string | null;
 }
 
 export interface OrderSummary {

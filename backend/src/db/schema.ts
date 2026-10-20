@@ -290,6 +290,12 @@ BEGIN
   END IF;
 END $$;
 
+-- Hình thức nhận: giao tận nơi / khách đến quán lấy. Giờ hẹn: NULL = càng sớm càng tốt
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS fulfillment VARCHAR(10) NOT NULL DEFAULT 'delivery';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ;
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_fulfillment_check;
+ALTER TABLE orders ADD CONSTRAINT orders_fulfillment_check CHECK (fulfillment IN ('delivery', 'pickup'));
+
 CREATE INDEX IF NOT EXISTS idx_contact_messages_created ON contact_messages(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);

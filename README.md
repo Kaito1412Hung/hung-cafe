@@ -10,6 +10,7 @@ Website đặt đồ uống cho một quán cà phê: khách xem thực đơn, c
 - Thực đơn 45 món / 7 danh mục, tìm món gõ không dấu (`ca phe` vẫn ra "Cà Phê")
 - Mỗi món có lựa chọn riêng: size, mức đường, nóng hay đá, lượng đá, topping (tối đa 4), ghi chú
 - Giỏ hàng, đặt hàng, chọn mã giảm giá từ danh sách (hoặc nhập mã bí mật)
+- Chọn **giao tận nơi** hoặc **đến quán lấy** (không tính phí giao), **hẹn giờ nhận** trong hôm nay / ngày mai
 - Theo dõi đơn: giờ của từng bước (đặt → xác nhận → giao → hoàn thành) + "Dự kiến giao lúc …"
 - Huỷ đơn kèm lý do, mua lại đơn cũ, thông báo khi đơn đổi trạng thái
 - Đánh giá món đã mua, món yêu thích, hồ sơ cá nhân + ảnh đại diện, đổi mật khẩu, đăng xuất mọi thiết bị

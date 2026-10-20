@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Clock, X } from "lucide-react";
+import { Check, Clock, Coffee, X } from "lucide-react";
 import { useShopSettings } from "@/context/ShopSettingsContext";
-import { ORDER_STATUS, ORDER_STEPS, estimateDelivery, formatDateTime, formatStepTime, stepTime } from "@/lib/orders";
+import { ORDER_STEPS, estimateDelivery, formatDateTime, formatScheduled, formatStepTime, statusLabel, stepTime } from "@/lib/orders";
 import { cn } from "@/lib/utils";
 import type { Order } from "@/types/order";
 
-type ProgressOrder = Pick<Order, "status" | "createdAt" | "confirmedAt" | "shippingAt" | "completedAt" | "cancelledAt">;
+type ProgressOrder = Pick<Order, "status" | "createdAt" | "confirmedAt" | "shippingAt" | "completedAt" | "cancelledAt" | "fulfillment" | "scheduledAt">;
 
 /** Giờ hiện tại, tự cập nhật mỗi phút (để biết đơn có đang trễ so với dự kiến không) */
 function useNow() {
@@ -22,7 +22,7 @@ function useNow() {
 }
 
 /** Thanh tiến trình: Chờ xác nhận → Đã xác nhận → Đang giao → Hoàn thành, kèm giờ của từng bước + giờ dự kiến giao */
-export function OrderProgress({ order }: { order: ProgressOrder }) {
+export function OrderProgress({ order, forAdmin = false }: { order: ProgressOrder; forAdmin?: boolean }) {
   const { settings } = useShopSettings();
   const now = useNow();
 
@@ -37,6 +37,9 @@ export function OrderProgress({ order }: { order: ProgressOrder }) {
   const currentIndex = ORDER_STEPS.indexOf(order.status);
   const eta = estimateDelivery(order, settings);
   const late = eta !== null && now !== null && now > eta.getTime();
+  const pickup = order.fulfillment === "pickup";
+  // "Dự kiến giao lúc" / "Hẹn lấy lúc"...
+  const etaLabel = `${order.scheduledAt ? "Hẹn" : "Dự kiến"} ${pickup ? (order.scheduledAt ? "lấy" : "xong") : "giao"} lúc`;
 
   return (
     <div>
@@ -58,7 +61,7 @@ export function OrderProgress({ order }: { order: ProgressOrder }) {
                 {done ? <Check className="h-4 w-4" /> : i + 1}
               </span>
               <span className={cn("mt-2 text-[11px] leading-tight sm:text-xs", done ? "font-medium text-coffee-900" : "text-coffee-400")}>
-                {ORDER_STATUS[step].label}
+                {statusLabel(step, order.fulfillment)}
               </span>
               {/* Bước chưa tới → để trống; bước đã qua nhưng đơn cũ không có giờ → "—" */}
               <span className="mt-0.5 min-h-4 text-[11px] tabular-nums text-coffee-500">{done ? (at ? formatStepTime(at, order.createdAt) : "—") : ""}</span>
@@ -66,6 +69,16 @@ export function OrderProgress({ order }: { order: ProgressOrder }) {
           );
         })}
       </ol>
+
+      {/* Đến quán lấy, đã pha xong → mời khách tới lấy */}
+      {pickup && order.status === "shipping" && (
+        <p className="mt-4 flex items-start gap-2 rounded-xl bg-emerald-50 px-4 py-2.5 text-sm text-emerald-800">
+          <Coffee className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            <strong>Món đã pha xong!</strong> {forAdmin ? "Đang chờ khách đến lấy." : "Mời bạn đến quán lấy, nhớ báo mã đơn cho nhân viên."}
+          </span>
+        </p>
+      )}
 
       {eta && (
         <p
@@ -76,8 +89,10 @@ export function OrderProgress({ order }: { order: ProgressOrder }) {
         >
           <Clock className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
-            {order.status === "shipping" ? "🛵 " : ""}Dự kiến giao lúc <strong className="tabular-nums">{formatStepTime(eta.toISOString(), order.createdAt)}</strong>
-            {late && <span className="block text-xs">Đơn hơi trễ so với dự kiến, quán đang cố gắng giao sớm nhất cho bạn.</span>}
+            {order.status === "shipping" ? "🛵 " : ""}
+            {etaLabel}{" "}
+            <strong className="tabular-nums">{order.scheduledAt ? formatScheduled(order.scheduledAt) : formatStepTime(eta.toISOString(), order.createdAt)}</strong>
+            {late && <span className="block text-xs">Đơn hơi trễ so với dự kiến, quán đang cố gắng {pickup ? "pha xong" : "giao"} sớm nhất cho bạn.</span>}
           </span>
         </p>
       )}

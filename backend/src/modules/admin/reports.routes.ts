@@ -84,11 +84,14 @@ reportsRouter.get("/revenue", async (req, res) => {
       shippingFee: number;
       total: number;
       cancelReason: string;
+      fulfillment: string;
+      scheduledAt: string | null;
       items: { name: string; quantity: number; size: string; sugar: string; temp: string; ice: string; note: string; toppings: { name: string }[] }[];
     }>(
       `SELECT o.id, to_char(o.created_at AT TIME ZONE '${TZ}', 'DD/MM/YYYY HH24:MI') AS "createdAt",
               o.customer_name AS "customerName", o.phone, o.status, o.subtotal, o.coupon_code AS "couponCode",
               o.discount, o.shipping_fee AS "shippingFee", o.total, o.cancel_reason AS "cancelReason",
+              o.fulfillment, to_char(o.scheduled_at AT TIME ZONE '${TZ}', 'DD/MM/YYYY HH24:MI') AS "scheduledAt",
               json_agg(json_build_object('name', oi.product_name, 'quantity', oi.quantity,
                 'size', oi.size, 'sugar', oi.sugar, 'temp', oi.temp, 'ice', oi.ice, 'note', oi.note, 'toppings', oi.toppings) ORDER BY oi.id) AS items
        FROM orders o JOIN order_items oi ON oi.order_id = o.id
@@ -173,6 +176,8 @@ reportsRouter.get("/revenue", async (req, res) => {
     { header: "Thời gian", key: "createdAt", width: 17 },
     { header: "Khách hàng", key: "customerName", width: 22 },
     { header: "SĐT", key: "phone", width: 13 },
+    { header: "Hình thức", key: "fulfillment", width: 14 },
+    { header: "Hẹn giờ", key: "scheduledAt", width: 17 },
     { header: "Món", key: "items", width: 48 },
     { header: "Trạng thái", key: "status", width: 14 },
     { header: "Tạm tính", key: "subtotal", width: 13, style: { numFmt: MONEY } },
@@ -188,6 +193,8 @@ reportsRouter.get("/revenue", async (req, res) => {
       ...o,
       code: `#${String(o.id).padStart(5, "0")}`,
       status: STATUS_LABELS[o.status],
+      fulfillment: o.fulfillment === "pickup" ? "Đến quán lấy" : "Giao tận nơi",
+      scheduledAt: o.scheduledAt ?? "",
       items: o.items
         .map((i) => {
           const opts = describeOptions(i);
