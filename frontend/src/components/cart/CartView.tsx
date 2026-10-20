@@ -121,7 +121,7 @@ export function CartView() {
             </div>
           </div>
 
-          <CouponBox applied={coupon} onChange={applyCoupon} />
+          <CouponBox applied={coupon} onChange={applyCoupon} subtotal={cart.subtotal} />
 
           <dl className="space-y-3 text-sm">
             <div className="flex justify-between">

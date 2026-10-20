@@ -189,6 +189,9 @@ INSERT INTO coupons (code, description, type, value, max_discount, min_order, fi
   ('GIAM15K', 'Giảm 15.000đ cho đơn từ 150.000đ', 'fixed', 15000, NULL, 150000, FALSE)
 ON CONFLICT (code) DO NOTHING;
 
+-- Mã hiện trong danh sách "Chọn mã giảm giá" cho khách (tắt = mã bí mật, phải tự gõ)
+ALTER TABLE coupons ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT TRUE;
+
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_code   VARCHAR(30)  NOT NULL DEFAULT '';
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount      INTEGER      NOT NULL DEFAULT 0 CHECK (discount >= 0);
 -- Lý do huỷ đơn (admin chọn / khách chọn) để khách biết vì sao

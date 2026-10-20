@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Copy, Pencil, Plus, TicketPercent, Trash2 } from "lucide-react";
+import { Copy, EyeOff, Pencil, Plus, TicketPercent, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/FormField";
@@ -49,6 +49,7 @@ interface FormValues {
   startsAt: string;
   expiresAt: string;
   isActive: boolean;
+  isPublic: boolean;
 }
 
 function CouponFormModal({ coupon, onClose, onSaved }: { coupon: Coupon | null; onClose: () => void; onSaved: (c: Coupon) => void }) {
@@ -65,6 +66,7 @@ function CouponFormModal({ coupon, onClose, onSaved }: { coupon: Coupon | null; 
     startsAt: toLocalInput(coupon?.startsAt ?? null),
     expiresAt: toLocalInput(coupon?.expiresAt ?? null),
     isActive: coupon?.isActive ?? true,
+    isPublic: coupon?.isPublic ?? true,
   });
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [saving, setSaving] = useState(false);
@@ -97,6 +99,7 @@ function CouponFormModal({ coupon, onClose, onSaved }: { coupon: Coupon | null; 
       startsAt: fromLocalInput(v.startsAt),
       expiresAt: fromLocalInput(v.expiresAt),
       isActive: v.isActive,
+      isPublic: v.isPublic,
     };
     setSaving(true);
     try {
@@ -176,6 +179,13 @@ function CouponFormModal({ coupon, onClose, onSaved }: { coupon: Coupon | null; 
             <p className="text-xs text-coffee-500">Tắt để tạm ngưng mã</p>
           </div>
           <Switch checked={v.isActive} onChange={(x) => set("isActive", x)} label="Đang bật" />
+        </label>
+        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-coffee-100 p-4 sm:col-span-2">
+          <div>
+            <p className="text-sm font-medium text-coffee-900">Hiện cho khách chọn</p>
+            <p className="text-xs text-coffee-500">Tắt = mã bí mật: không hiện trong danh sách, khách phải tự gõ (VD mã tặng riêng khách quen)</p>
+          </div>
+          <Switch checked={v.isPublic} onChange={(x) => set("isPublic", x)} label="Hiện cho khách chọn" />
         </label>
       </form>
     </Modal>
@@ -277,6 +287,11 @@ export default function AdminCouponsPage() {
                         >
                           {c.code} <Copy className="h-3.5 w-3.5 text-coffee-500" />
                         </button>
+                        {!c.isPublic && (
+                          <p className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-coffee-100 px-2 py-0.5 text-[11px] font-medium text-coffee-700">
+                            <EyeOff className="h-3 w-3" /> Mã bí mật
+                          </p>
+                        )}
                         {c.description && <p className="mt-1.5 max-w-56 text-xs text-coffee-500">{c.description}</p>}
                       </td>
                       <td className="px-5 py-4 font-medium text-coffee-900">{describeDiscount(c)}</td>

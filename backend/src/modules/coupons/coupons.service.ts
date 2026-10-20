@@ -17,12 +17,15 @@ export interface Coupon {
   startsAt: string | null;
   expiresAt: string | null;
   isActive: boolean;
+  /** Hiện trong danh sách cho khách chọn (false = mã bí mật, khách phải tự gõ) */
+  isPublic: boolean;
   createdAt: Date;
 }
 
 const COLUMNS = `id, code, description, type, value, max_discount AS "maxDiscount", min_order AS "minOrder",
   usage_limit AS "usageLimit", used_count AS "usedCount", first_order_only AS "firstOrderOnly",
-  starts_at AS "startsAt", expires_at AS "expiresAt", is_active AS "isActive", created_at AS "createdAt"`;
+  starts_at AS "startsAt", expires_at AS "expiresAt", is_active AS "isActive",
+  is_public AS "isPublic", created_at AS "createdAt"`;
 
 /* ---------- Kiểm tra dữ liệu admin nhập ---------- */
 const fields = {
@@ -41,6 +44,7 @@ const fields = {
   startsAt: z.iso.datetime({ offset: true, error: "Ngày bắt đầu không hợp lệ" }).nullable(),
   expiresAt: z.iso.datetime({ offset: true, error: "Ngày hết hạn không hợp lệ" }).nullable(),
   isActive: z.boolean(),
+  isPublic: z.boolean(),
 };
 
 const checkRules = (v: { type?: string; value?: number; startsAt?: string | null; expiresAt?: string | null }, ctx: z.RefinementCtx) => {
@@ -63,6 +67,7 @@ export const couponSchema = z
     startsAt: fields.startsAt.default(null),
     expiresAt: fields.expiresAt.default(null),
     isActive: fields.isActive.default(true),
+    isPublic: fields.isPublic.default(true),
   })
   .superRefine(checkRules);
 
@@ -84,6 +89,7 @@ const FIELD_TO_COLUMN: Record<keyof CouponInput, string> = {
   startsAt: "starts_at",
   expiresAt: "expires_at",
   isActive: "is_active",
+  isPublic: "is_public",
 };
 
 /* ---------- Tính tiền giảm ---------- */
@@ -124,6 +130,51 @@ export async function evaluate(client: PoolClient | typeof pool, rawCode: string
   if (used[0].withCode > 0) throw new AppError(400, "Bạn đã dùng mã này rồi (mỗi tài khoản dùng 1 lần)");
 
   return { coupon, discount: calcDiscount(coupon, subtotal) };
+}
+
+/**
+ * Danh sách mã CÔNG KHAI cho khách chọn ở giỏ hàng: mã nào dùng được thì kèm số tiền giảm,
+ * mã chưa dùng được thì kèm lý do (VD "Mua thêm 38.000đ để dùng"). Mã hết hạn / hết lượt / chưa tới ngày thì ẩn luôn.
+ */
+export async function listAvailable(userId: number, subtotal: number) {
+  const { rows } = await pool.query<Coupon>(
+    `SELECT ${COLUMNS} FROM coupons
+     WHERE is_active AND is_public
+       AND (starts_at IS NULL OR starts_at <= NOW())
+       AND (expires_at IS NULL OR expires_at > NOW())
+       AND (usage_limit IS NULL OR used_count < usage_limit)
+     ORDER BY created_at DESC`,
+  );
+
+  const list = [];
+  for (const c of rows) {
+    let discount = 0;
+    let reason = "";
+    try {
+      // Dùng lại đúng hàm kiểm tra lúc đặt hàng → lý do hiện ra khớp với thực tế
+      discount = (await evaluate(pool, c.code, userId, subtotal)).discount;
+    } catch (err) {
+      if (!(err instanceof AppError)) throw err;
+      // Câu dài "Mã này áp dụng cho đơn từ ... — bạn cần mua thêm X" → rút gọn cho vừa tấm vé
+      const missing = c.minOrder - subtotal;
+      reason = missing > 0 ? `Mua thêm ${money(missing)} để dùng` : err.message;
+    }
+    list.push({
+      code: c.code,
+      description: c.description,
+      type: c.type,
+      value: c.value,
+      maxDiscount: c.maxDiscount,
+      minOrder: c.minOrder,
+      expiresAt: c.expiresAt,
+      usageLeft: c.usageLimit === null ? null : c.usageLimit - c.usedCount,
+      discount,
+      eligible: reason === "",
+      reason,
+    });
+  }
+  // Dùng được + giảm nhiều nhất lên đầu, chưa dùng được xuống cuối
+  return list.sort((a, b) => Number(b.eligible) - Number(a.eligible) || b.discount - a.discount);
 }
 
 /* ---------- Admin ---------- */

@@ -30,6 +30,12 @@ couponsRouter.post(
   },
 );
 
+/* ----- Khách: các mã công khai để chọn (kèm số tiền giảm hoặc lý do chưa dùng được) ----- */
+couponsRouter.get("/available", async (req, res) => {
+  const cart = await getCart(req.user!.id);
+  res.json({ data: await couponService.listAvailable(req.user!.id, cart.subtotal) });
+});
+
 /* ----- Admin ----- */
 couponsRouter.get("/", requireRole("admin"), async (_req, res) => {
   res.json({ data: await couponService.findAll() });

@@ -1,78 +1,76 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { TicketPercent, X } from "lucide-react";
-import { Button } from "@/components/ui/Button";
-import { formatPrice } from "@/lib/utils";
+import { useEffect, useState } from "react";
+import { ChevronRight, TicketPercent } from "lucide-react";
+import { cn, formatPrice } from "@/lib/utils";
 import { couponService } from "@/services/couponService";
 import type { AppliedCoupon } from "@/types/coupon";
+import { CouponPickerModal } from "./CouponPickerModal";
 
 interface CouponBoxProps {
   applied: AppliedCoupon | null;
   onChange: (coupon: AppliedCoupon | null) => void;
+  /** Tạm tính của giỏ — đổi thì đếm lại số mã dùng được */
+  subtotal: number;
 }
 
-/** Ô nhập mã giảm giá trong giỏ hàng. Server kiểm tra điều kiện và trả về số tiền được giảm */
-export function CouponBox({ applied, onChange }: CouponBoxProps) {
-  const [code, setCode] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [checking, setChecking] = useState(false);
+/** Dòng "Chọn mã giảm giá" trong giỏ hàng: bấm vào mở cửa sổ danh sách mã để chọn (không cần gõ) */
+export function CouponBox({ applied, onChange, subtotal }: CouponBoxProps) {
+  const [open, setOpen] = useState(false);
+  const [usableCount, setUsableCount] = useState<number | null>(null);
+  // key mới mỗi lần mở → cửa sổ reset lựa chọn theo mã đang áp dụng
+  const [openKey, setOpenKey] = useState(0);
 
-  const handleApply = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!code.trim()) return;
-    setChecking(true);
-    setError(null);
-    try {
-      onChange(await couponService.check(code.trim()));
-      setCode("");
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setChecking(false);
-    }
-  };
-
-  if (applied) {
-    return (
-      <div className="flex items-start gap-3 rounded-2xl bg-emerald-50 p-3.5 ring-1 ring-emerald-600/20">
-        <TicketPercent className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-        <div className="min-w-0 flex-1 text-sm">
-          <p className="font-semibold text-emerald-800">
-            {applied.code} · −{formatPrice(applied.discount)}
-          </p>
-          {applied.description && <p className="text-emerald-700">{applied.description}</p>}
-        </div>
-        <button onClick={() => onChange(null)} className="cursor-pointer rounded-lg p-1 text-emerald-700 hover:bg-emerald-100" aria-label="Bỏ mã giảm giá">
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-    );
-  }
+  // Đếm số mã dùng được để gợi ý khách ("2 mã dùng được")
+  useEffect(() => {
+    let cancelled = false;
+    couponService
+      .available()
+      .then((list) => !cancelled && setUsableCount(list.filter((c) => c.eligible).length))
+      .catch(() => !cancelled && setUsableCount(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [subtotal]);
 
   return (
-    <form onSubmit={handleApply} className="space-y-1.5">
-      <label htmlFor="coupon" className="text-sm font-medium text-coffee-800">
-        Mã giảm giá
-      </label>
-      <div className="flex gap-2">
-        <input
-          id="coupon"
-          value={code}
-          onChange={(e) => {
-            setCode(e.target.value.toUpperCase());
-            setError(null);
-          }}
-          placeholder="VD: GIAM10"
-          maxLength={30}
-          autoComplete="off"
-          className="h-11 min-w-0 flex-1 rounded-xl border border-coffee-200 bg-white px-3.5 text-sm uppercase tracking-wide text-coffee-950 placeholder:normal-case placeholder:tracking-normal placeholder:text-coffee-400/80 focus:border-coffee-500 focus:outline-none focus:ring-4 focus:ring-coffee-200/60"
-        />
-        <Button type="submit" variant="outline" loading={checking} disabled={!code.trim()} className="h-11 shrink-0 rounded-xl">
-          Áp dụng
-        </Button>
-      </div>
-      {error && <p className="text-xs font-medium text-red-600">{error}</p>}
-    </form>
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setOpenKey((k) => k + 1);
+          setOpen(true);
+        }}
+        className={cn(
+          "flex w-full cursor-pointer items-center gap-3 rounded-2xl p-3.5 text-left ring-1 transition",
+          applied ? "bg-emerald-50 ring-emerald-600/20 hover:bg-emerald-100/70" : "bg-white ring-coffee-200 hover:bg-coffee-50",
+        )}
+      >
+        <TicketPercent className={cn("h-5 w-5 shrink-0", applied ? "text-emerald-600" : "text-coffee-500")} />
+        <span className="min-w-0 flex-1">
+          {applied ? (
+            <>
+              <span className="block text-sm font-semibold text-emerald-800">
+                {applied.code} · −{formatPrice(applied.discount)}
+              </span>
+              {applied.description && <span className="block truncate text-xs text-emerald-700">{applied.description}</span>}
+            </>
+          ) : (
+            <>
+              <span className="block text-sm font-semibold text-coffee-900">Chọn mã giảm giá</span>
+              <span className="block text-xs text-coffee-500">
+                {usableCount === null ? "Xem các ưu đãi của quán" : usableCount > 0 ? `${usableCount} mã dùng được cho đơn này` : "Chưa có mã dùng được — xem điều kiện"}
+              </span>
+            </>
+          )}
+        </span>
+        <span className={cn("flex shrink-0 items-center text-xs font-medium", applied ? "text-emerald-700" : "text-coffee-600")}>
+          {applied ? "Đổi mã" : ""}
+          <ChevronRight className="h-4 w-4" />
+        </span>
+      </button>
+
+      <CouponPickerModal key={openKey} open={open} applied={applied} onClose={() => setOpen(false)} onApply={onChange} />
+    </>
   );
 }
