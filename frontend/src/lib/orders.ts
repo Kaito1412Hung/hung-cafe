@@ -1,4 +1,5 @@
-import type { OrderStatus } from "@/types/order";
+import type { Order, OrderStatus } from "@/types/order";
+import type { ShopSettings } from "@/types/settings";
 
 export const ORDER_STATUS: Record<OrderStatus, { label: string; tone: string; dot: string }> = {
   pending: { label: "Chờ xác nhận", tone: "bg-amber-50 text-amber-700 ring-amber-600/20", dot: "bg-amber-500" },
@@ -32,4 +33,39 @@ export function formatOrderCode(id: number) {
 
 export function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+/** "14:05" — kèm ngày "14:05 · 19/10" khi khác ngày với `base` (VD đơn đặt tối, sáng hôm sau mới giao) */
+export function formatStepTime(iso: string, base?: string) {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  if (!base || new Date(base).toDateString() === d.toDateString()) return time;
+  return `${time} · ${d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" })}`;
+}
+
+/** Giờ của từng bước trên thanh tiến trình */
+export function stepTime(order: Pick<Order, "createdAt" | "confirmedAt" | "shippingAt" | "completedAt">, step: OrderStatus): string | null {
+  if (step === "pending") return order.createdAt;
+  if (step === "confirmed") return order.confirmedAt;
+  if (step === "shipping") return order.shippingAt;
+  if (step === "completed") return order.completedAt;
+  return null;
+}
+
+/**
+ * Giờ dự kiến giao (chỉ khi đơn chưa xong / chưa huỷ):
+ * - Chờ xác nhận / đã xác nhận: (giờ xác nhận, chưa có thì giờ đặt) + pha chế + giao
+ * - Đang giao: giờ bắt đầu giao + thời gian giao
+ */
+export function estimateDelivery(
+  order: Pick<Order, "status" | "createdAt" | "confirmedAt" | "shippingAt">,
+  settings: Pick<ShopSettings, "prepMinutes" | "deliveryMinutes">,
+): Date | null {
+  const minutes = 60_000;
+  if (order.status === "shipping" && order.shippingAt) return new Date(new Date(order.shippingAt).getTime() + settings.deliveryMinutes * minutes);
+  if (order.status === "pending" || order.status === "confirmed") {
+    const from = new Date(order.confirmedAt ?? order.createdAt).getTime();
+    return new Date(from + (settings.prepMinutes + settings.deliveryMinutes) * minutes);
+  }
+  return null;
 }

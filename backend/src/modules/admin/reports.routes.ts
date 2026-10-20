@@ -4,8 +4,9 @@ import { requireAuth, requireRole } from "../../middlewares/auth";
 import { pool } from "../../db/pool";
 import { describeOptions } from "../cart/options";
 import { STATUS_LABELS, type OrderStatus } from "../orders/orders.schema";
+import { calendarDaysStart, monthSpan, parsePeriod, periodRange } from "./period";
 
-/** GET /api/admin/reports/revenue?days=30 → tải file Excel (.xlsx) báo cáo doanh thu */
+/** GET /api/admin/reports/revenue?days=30 (hoặc ?year=2026) → tải file Excel (.xlsx) báo cáo doanh thu */
 export const reportsRouter = Router();
 reportsRouter.use(requireAuth, requireRole("admin"));
 
@@ -23,8 +24,13 @@ function styleHeader(sheet: ExcelJS.Worksheet, rowNumber = 1) {
 }
 
 reportsRouter.get("/revenue", async (req, res) => {
-  const days = [7, 30, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 30;
-  const range = `o.created_at >= (date_trunc('day', NOW() AT TIME ZONE '${TZ}') - make_interval(days => $1 - 1)) AT TIME ZONE '${TZ}'`;
+  const period = parsePeriod(req.query, 30);
+  // N ngày: tính theo ngày lịch (từ 00:00); cả năm: 1/1 → hiện tại
+  const start = period.kind === "days" ? calendarDaysStart(period.days) : periodRange(period).start;
+  const end = period.kind === "days" ? new Date() : periodRange(period).end;
+  const range = `o.created_at >= $1 AND o.created_at < $2`;
+  const bounds = [start, end];
+  const months = period.kind === "year" ? monthSpan(period.year) : null;
 
   const [summary, daily, products, orders, settings] = await Promise.all([
     pool.query<{ total: number; completed: number; cancelled: number; revenue: number; discount: number; shipping: number }>(
@@ -35,24 +41,36 @@ reportsRouter.get("/revenue", async (req, res) => {
               COALESCE(SUM(discount) FILTER (WHERE status = 'completed'), 0)::int AS discount,
               COALESCE(SUM(shipping_fee) FILTER (WHERE status = 'completed'), 0)::int AS shipping
        FROM orders o WHERE ${range}`,
-      [days],
+      bounds,
     ),
-    pool.query<{ date: string; orders: number; completed: number; revenue: number }>(
-      `SELECT to_char(d, 'DD/MM/YYYY') AS date,
-              COUNT(o.id) FILTER (WHERE o.status <> 'cancelled')::int AS orders,
-              COUNT(o.id) FILTER (WHERE o.status = 'completed')::int AS completed,
-              COALESCE(SUM(o.total) FILTER (WHERE o.status = 'completed'), 0)::int AS revenue
-       FROM generate_series((NOW() AT TIME ZONE '${TZ}')::date - ($1::int - 1), (NOW() AT TIME ZONE '${TZ}')::date, INTERVAL '1 day') AS d
-       LEFT JOIN orders o ON (o.created_at AT TIME ZONE '${TZ}')::date = d::date
-       GROUP BY d ORDER BY d`,
-      [days],
-    ),
+    // Theo ngày (N ngày) hoặc theo tháng (cả năm)
+    months
+      ? pool.query<{ date: string; orders: number; completed: number; revenue: number }>(
+          `SELECT 'Tháng ' || to_char(m, 'MM/YYYY') AS date,
+                  COUNT(o.id) FILTER (WHERE o.status <> 'cancelled')::int AS orders,
+                  COUNT(o.id) FILTER (WHERE o.status = 'completed')::int AS completed,
+                  COALESCE(SUM(o.total) FILTER (WHERE o.status = 'completed'), 0)::int AS revenue
+           FROM generate_series($1::date, $2::date, INTERVAL '1 month') AS m
+           LEFT JOIN orders o ON date_trunc('month', o.created_at AT TIME ZONE '${TZ}') = m
+           GROUP BY m ORDER BY m`,
+          [months.first, months.last],
+        )
+      : pool.query<{ date: string; orders: number; completed: number; revenue: number }>(
+          `SELECT to_char(d, 'DD/MM/YYYY') AS date,
+                  COUNT(o.id) FILTER (WHERE o.status <> 'cancelled')::int AS orders,
+                  COUNT(o.id) FILTER (WHERE o.status = 'completed')::int AS completed,
+                  COALESCE(SUM(o.total) FILTER (WHERE o.status = 'completed'), 0)::int AS revenue
+           FROM generate_series((NOW() AT TIME ZONE '${TZ}')::date - ($1::int - 1), (NOW() AT TIME ZONE '${TZ}')::date, INTERVAL '1 day') AS d
+           LEFT JOIN orders o ON (o.created_at AT TIME ZONE '${TZ}')::date = d::date
+           GROUP BY d ORDER BY d`,
+          [period.kind === "days" ? period.days : 0],
+        ),
     pool.query<{ name: string; quantity: number; revenue: number }>(
       `SELECT oi.product_name AS name, SUM(oi.quantity)::int AS quantity, SUM(oi.line_total)::int AS revenue
        FROM order_items oi JOIN orders o ON o.id = oi.order_id
        WHERE o.status = 'completed' AND ${range}
        GROUP BY oi.product_name ORDER BY quantity DESC, revenue DESC`,
-      [days],
+      bounds,
     ),
     pool.query<{
       id: number;
@@ -76,15 +94,18 @@ reportsRouter.get("/revenue", async (req, res) => {
        FROM orders o JOIN order_items oi ON oi.order_id = o.id
        WHERE ${range}
        GROUP BY o.id ORDER BY o.created_at DESC`,
-      [days],
+      bounds,
     ),
     pool.query<{ value: { name?: string } }>("SELECT value FROM settings WHERE key = 'shop'"),
   ]);
 
   const shopName = settings.rows[0]?.value.name ?? "Hưng Café";
   const s = summary.rows[0];
-  const from = daily.rows[0]?.date;
-  const to = daily.rows[daily.rows.length - 1]?.date;
+  const fmtDate = (d: Date) => d.toLocaleDateString("vi-VN", { timeZone: TZ, day: "2-digit", month: "2-digit", year: "numeric" });
+  const rangeText =
+    period.kind === "days"
+      ? `Từ ${daily.rows[0]?.date} đến ${daily.rows[daily.rows.length - 1]?.date} (${period.days} ngày)`
+      : `Năm ${period.year}: từ ${fmtDate(start)} đến ${fmtDate(new Date(end.getTime() - 1))}`;
 
   const wb = new ExcelJS.Workbook();
   wb.creator = shopName;
@@ -94,7 +115,7 @@ reportsRouter.get("/revenue", async (req, res) => {
   const overview = wb.addWorksheet("Tổng quan");
   overview.columns = [{ width: 34 }, { width: 22 }];
   overview.addRow([`BÁO CÁO DOANH THU — ${shopName.toUpperCase()}`]).font = { bold: true, size: 14, color: { argb: BROWN } };
-  overview.addRow([`Từ ${from} đến ${to} (${days} ngày)`]).font = { italic: true };
+  overview.addRow([rangeText]).font = { italic: true };
   overview.addRow([`Xuất lúc ${new Date().toLocaleString("vi-VN", { timeZone: TZ })}`]).font = { italic: true, color: { argb: "FF888888" } };
   overview.addRow([]);
   overview.addRow(["Chỉ số", "Giá trị"]);
@@ -116,10 +137,10 @@ reportsRouter.get("/revenue", async (req, res) => {
   }
   overview.getRow(6).font = { bold: true };
 
-  /* ----- Sheet 2: Theo ngày ----- */
-  const byDay = wb.addWorksheet("Theo ngày");
+  /* ----- Sheet 2: Theo ngày (hoặc theo tháng khi xem cả năm) ----- */
+  const byDay = wb.addWorksheet(months ? "Theo tháng" : "Theo ngày");
   byDay.columns = [
-    { header: "Ngày", key: "date", width: 14 },
+    { header: months ? "Tháng" : "Ngày", key: "date", width: 16 },
     { header: "Số đơn (không tính huỷ)", key: "orders", width: 24 },
     { header: "Đơn hoàn thành", key: "completed", width: 18 },
     { header: "Doanh thu", key: "revenue", width: 18, style: { numFmt: MONEY } },
@@ -184,7 +205,10 @@ reportsRouter.get("/revenue", async (req, res) => {
     sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: sheet.columnCount } };
   }
 
-  const fileName = `bao-cao-doanh-thu-${days}-ngay-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  const fileName =
+    period.kind === "days"
+      ? `bao-cao-doanh-thu-${period.days}-ngay-${new Date().toISOString().slice(0, 10)}.xlsx`
+      : `bao-cao-doanh-thu-nam-${period.year}.xlsx`;
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
   await wb.xlsx.write(res);

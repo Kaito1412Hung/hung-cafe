@@ -1,16 +1,19 @@
 import { api } from "@/lib/api";
 import type { Customer, CustomerDetail } from "@/types/customer";
-import type { DashboardStats } from "@/types/stats";
+import type { DashboardStats, StatsPeriod } from "@/types/stats";
 import type { Role } from "@/types/user";
 
+/** { kind: "days", days: 30 } → "days=30"; { kind: "year", year: 2026 } → "year=2026" */
+const periodQuery = (p: StatsPeriod) => (p.kind === "days" ? `days=${p.days}` : `year=${p.year}`);
+
 export const adminService = {
-  async getStats(days: number): Promise<DashboardStats> {
-    return (await api<{ data: DashboardStats }>(`/admin/stats?days=${days}`)).data;
+  async getStats(period: StatsPeriod): Promise<DashboardStats> {
+    return (await api<{ data: DashboardStats }>(`/admin/stats?${periodQuery(period)}`)).data;
   },
 
   /** Tải file Excel báo cáo doanh thu (trả về file + tên file từ server) */
-  async downloadRevenueReport(days: number): Promise<{ blob: Blob; fileName: string }> {
-    const res = await fetch(`/api/admin/reports/revenue?days=${days}`, { credentials: "include" });
+  async downloadRevenueReport(period: StatsPeriod): Promise<{ blob: Blob; fileName: string }> {
+    const res = await fetch(`/api/admin/reports/revenue?${periodQuery(period)}`, { credentials: "include" });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
       throw new Error(body?.message ?? "Không tạo được báo cáo");

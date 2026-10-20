@@ -35,6 +35,10 @@ export const shopSettingsSchema = z.object({
 
   shippingFee: money("Phí giao hàng"),
   freeShippingThreshold: money("Ngưỡng miễn phí giao hàng"),
+
+  // Dùng để tính "Dự kiến giao lúc …" cho khách (phút)
+  prepMinutes: z.number({ error: "Thời gian pha chế phải là số" }).int("Số phút là số nguyên").min(5, "Ít nhất 5 phút").max(180, "Tối đa 180 phút"),
+  deliveryMinutes: z.number({ error: "Thời gian giao phải là số" }).int("Số phút là số nguyên").min(5, "Ít nhất 5 phút").max(180, "Tối đa 180 phút"),
 });
 
 export type ShopSettings = z.infer<typeof shopSettingsSchema>;
@@ -56,4 +60,6 @@ export const DEFAULT_SHOP_SETTINGS: ShopSettings = {
   tiktokUrl: "",
   shippingFee: 15_000,
   freeShippingThreshold: 200_000,
+  prepMinutes: 15,
+  deliveryMinutes: 25,
 };

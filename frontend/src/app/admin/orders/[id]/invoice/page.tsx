@@ -76,6 +76,7 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
             <p className="mt-1 font-mono text-2xl font-bold text-coffee-950">{formatOrderCode(order.id)}</p>
             <p className="mt-1 text-sm text-coffee-600">{formatDateTime(order.createdAt)}</p>
             <p className="mt-1 text-sm text-coffee-600">Trạng thái: {ORDER_STATUS[order.status].label}</p>
+            {order.completedAt && <p className="mt-1 text-sm text-coffee-600">Giao xong: {formatDateTime(order.completedAt)}</p>}
             {order.cancelReason && <p className="mt-1 max-w-56 text-sm text-red-700">Lý do huỷ: {order.cancelReason}</p>}
           </div>
         </header>

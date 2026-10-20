@@ -48,12 +48,12 @@ function ShopSettingsForm() {
     }
   };
 
-  const numberInput = (key: "shippingFee" | "freeShippingThreshold") => (
+  const numberInput = (key: "shippingFee" | "freeShippingThreshold" | "prepMinutes" | "deliveryMinutes", step = 1000) => (
     <Input
       id={key}
       type="number"
       min={0}
-      step={1000}
+      step={step}
       value={values[key]}
       onChange={(e) => set(key, e.target.value === "" ? 0 : Number(e.target.value))}
       invalid={!!errors[key]}
@@ -156,6 +156,18 @@ function ShopSettingsForm() {
         <p className="mt-4 rounded-xl bg-coffee-50 px-4 py-3 text-sm text-coffee-700">
           Đơn dưới <strong>{formatPrice(values.freeShippingThreshold)}</strong> tính phí <strong>{formatPrice(values.shippingFee)}</strong>, từ mức này
           trở lên được miễn phí giao hàng.
+        </p>
+        <div className="mt-5 grid gap-4 @md:grid-cols-2">
+          <Field label="Thời gian pha chế (phút)" htmlFor="prepMinutes" error={errors.prepMinutes}>
+            {numberInput("prepMinutes", 1)}
+          </Field>
+          <Field label="Thời gian giao hàng (phút)" htmlFor="deliveryMinutes" error={errors.deliveryMinutes}>
+            {numberInput("deliveryMinutes", 1)}
+          </Field>
+        </div>
+        <p className="mt-4 rounded-xl bg-coffee-50 px-4 py-3 text-sm text-coffee-700">
+          Khách thấy <strong>“Dự kiến giao lúc …”</strong> = giờ đặt (hoặc giờ xác nhận) + <strong>{values.prepMinutes} phút</strong> pha chế +{" "}
+          <strong>{values.deliveryMinutes} phút</strong> giao. Khi đơn đã đi giao thì tính từ lúc bắt đầu giao.
         </p>
       </SettingsCard>
     </form>

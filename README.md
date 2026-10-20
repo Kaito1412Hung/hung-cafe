@@ -10,11 +10,12 @@ Website đặt đồ uống cho một quán cà phê: khách xem thực đơn, c
 - Thực đơn 45 món / 7 danh mục, tìm món gõ không dấu (`ca phe` vẫn ra "Cà Phê")
 - Mỗi món có lựa chọn riêng: size, mức đường, nóng hay đá, lượng đá, topping (tối đa 4), ghi chú
 - Giỏ hàng, đặt hàng, chọn mã giảm giá từ danh sách (hoặc nhập mã bí mật)
-- Theo dõi đơn, huỷ đơn kèm lý do, mua lại đơn cũ, thông báo khi đơn đổi trạng thái
+- Theo dõi đơn: giờ của từng bước (đặt → xác nhận → giao → hoàn thành) + "Dự kiến giao lúc …"
+- Huỷ đơn kèm lý do, mua lại đơn cũ, thông báo khi đơn đổi trạng thái
 - Đánh giá món đã mua, món yêu thích, hồ sơ cá nhân + ảnh đại diện, đổi mật khẩu, đăng xuất mọi thiết bị
 
 **Quản trị (admin)**
-- Tổng quan: doanh thu, số đơn, món bán chạy theo 7 / 30 / 90 ngày, xuất báo cáo Excel
+- Tổng quan: doanh thu, số đơn, món bán chạy theo 7 / 30 / 90 ngày hoặc cả năm (biểu đồ theo tháng), xuất báo cáo Excel
 - Quản lý món (ảnh, tồn kho, lựa chọn của từng món), danh mục, topping
 - Quản lý đơn hàng (chia trang, lọc, tìm kiếm, in hoá đơn), khách hàng, mã giảm giá
 - Hộp thư liên hệ, danh sách nhận tin, thông báo đơn mới, cài đặt cửa hàng (giờ mở cửa, phí giao)

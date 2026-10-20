@@ -4,6 +4,7 @@ import { requireAuth, requireRole } from "../../middlewares/auth";
 import { validateBody } from "../../middlewares/validate";
 import { AppError } from "../../utils/AppError";
 import * as customersService from "./customers.service";
+import { parsePeriod } from "./period";
 import { getDashboardStats } from "./stats.service";
 
 export const adminRouter = Router();
@@ -16,10 +17,9 @@ function parseId(req: Request) {
 }
 
 /* ----- Tổng quan ----- */
+// ?days=7|30|90 hoặc ?year=2026 (cả năm, biểu đồ theo tháng)
 adminRouter.get("/stats", async (req, res) => {
-  const days = Number(req.query.days);
-  const allowed = [7, 30, 90];
-  res.json({ data: await getDashboardStats(allowed.includes(days) ? days : 7) });
+  res.json({ data: await getDashboardStats(parsePeriod(req.query, 7)) });
 });
 
 /* ----- Khách hàng ----- */

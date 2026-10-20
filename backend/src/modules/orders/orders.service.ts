@@ -15,6 +15,8 @@ const ORDER_SELECT = `
          o.subtotal, o.coupon_code AS "couponCode", o.discount, o.shipping_fee AS "shippingFee", o.total,
          o.cancel_reason AS "cancelReason",
          o.created_at AS "createdAt", o.updated_at AS "updatedAt",
+         o.confirmed_at AS "confirmedAt", o.shipping_at AS "shippingAt",
+         o.completed_at AS "completedAt", o.cancelled_at AS "cancelledAt",
          COALESCE(
            json_agg(json_build_object(
              'productId', oi.product_id, 'name', oi.product_name, 'image', oi.product_image,
@@ -265,6 +267,14 @@ const CUSTOMER_MESSAGES: Partial<Record<OrderStatus, { title: string; message: s
   cancelled: { title: "đã bị huỷ", message: "Quán đã huỷ đơn này. Liên hệ quán nếu bạn cần hỗ trợ." },
 };
 
+/** Cột lưu giờ của từng bước */
+const STEP_COLUMNS: Partial<Record<OrderStatus, string>> = {
+  confirmed: "confirmed_at",
+  shipping: "shipping_at",
+  completed: "completed_at",
+  cancelled: "cancelled_at",
+};
+
 /**
  * Đổi trạng thái, kiểm tra theo STATUS_TRANSITIONS. Huỷ đơn → hoàn lại tồn kho + trả lại lượt mã giảm giá.
  * `notifyCustomer`: admin đổi → báo cho khách; khách tự huỷ thì không cần báo lại chính họ.
@@ -286,11 +296,12 @@ export async function changeStatus(
       throw new AppError(400, `Không thể chuyển đơn từ "${STATUS_LABELS[current]}" sang "${STATUS_LABELS[next]}"`);
     }
 
-    await client.query("UPDATE orders SET status = $1, cancel_reason = $2, updated_at = NOW() WHERE id = $3", [
-      next,
-      next === "cancelled" ? reason : "",
-      id,
-    ]);
+    // Ghi lại giờ của bước mới (tên cột lấy từ danh sách cố định STEP_COLUMNS, không lấy từ người dùng)
+    const stepColumn = STEP_COLUMNS[next];
+    await client.query(
+      `UPDATE orders SET status = $1, cancel_reason = $2, updated_at = NOW()${stepColumn ? `, ${stepColumn} = NOW()` : ""} WHERE id = $3`,
+      [next, next === "cancelled" ? reason : "", id],
+    );
 
     if (next === "cancelled") {
       await client.query(

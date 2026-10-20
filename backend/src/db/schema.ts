@@ -262,6 +262,34 @@ CREATE TABLE IF NOT EXISTS favorites (
   PRIMARY KEY (user_id, product_id)
 );
 
+-- Giờ của từng bước đơn hàng (NULL = chưa tới bước đó). Lần đầu thêm cột: điền giờ ước lượng cho đơn cũ
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'orders' AND column_name = 'confirmed_at') THEN
+    ALTER TABLE orders
+      ADD COLUMN confirmed_at TIMESTAMPTZ,
+      ADD COLUMN shipping_at  TIMESTAMPTZ,
+      ADD COLUMN completed_at TIMESTAMPTZ,
+      ADD COLUMN cancelled_at TIMESTAMPTZ;
+
+    -- Đơn đã hoàn thành: updated_at chính là lúc hoàn thành; chia khoảng thời gian thành xác nhận (10%) → giao (40%)
+    WITH span AS (
+      SELECT id, created_at,
+             CASE WHEN updated_at - created_at < INTERVAL '20 minutes'
+                  THEN make_interval(mins => 20 + id % 25) ELSE updated_at - created_at END AS total
+      FROM orders WHERE status = 'completed'
+    )
+    UPDATE orders o SET confirmed_at = s.created_at + s.total * 0.1,
+                        shipping_at  = s.created_at + s.total * 0.4,
+                        completed_at = s.created_at + s.total
+    FROM span s WHERE o.id = s.id;
+
+    UPDATE orders SET confirmed_at = created_at + make_interval(mins => 2 + id % 6) WHERE status IN ('confirmed', 'shipping');
+    UPDATE orders SET shipping_at = confirmed_at + make_interval(mins => 8 + id % 8) WHERE status = 'shipping';
+    UPDATE orders SET cancelled_at = GREATEST(updated_at, created_at + INTERVAL '3 minutes') WHERE status = 'cancelled';
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_contact_messages_created ON contact_messages(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);

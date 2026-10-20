@@ -44,7 +44,7 @@ const POLICIES: Record<string, Policy> = {
             Nhận đơn online trong giờ mở cửa: Thứ 2 – Thứ 6 từ {formatHour(s.weekdayOpen)} đến {formatHour(s.weekdayClose)}, Thứ 7 – Chủ nhật từ {formatHour(s.weekendOpen)} đến{" "}
             {formatHour(s.weekendClose)}.
           </li>
-          <li>Thời gian giao dự kiến 20 – 40 phút sau khi quán xác nhận đơn (giờ cao điểm hoặc trời mưa có thể lâu hơn).</li>
+          <li>Thời gian giao dự kiến khoảng {s.prepMinutes + s.deliveryMinutes} phút sau khi quán xác nhận đơn ({s.prepMinutes} phút pha chế + {s.deliveryMinutes} phút giao; giờ cao điểm hoặc trời mưa có thể lâu hơn). Giờ dự kiến của từng đơn hiện ở trang Đơn hàng của tôi.</li>
           <li>Đồ uống được pha ngay khi quán xác nhận đơn để giữ hương vị tốt nhất.</li>
         </ul>
         <H2>3. Phí giao hàng</H2>

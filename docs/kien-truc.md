@@ -32,6 +32,20 @@ schema      zod: kiểm tra dữ liệu gửi lên (sai → 400 kèm lỗi từn
 2. Giá 1 ly = giá món + phụ thu size + tổng giá topping, **tính ở backend** (không tin giá frontend gửi lên).
 3. `POST /api/orders` chạy trong **1 transaction**: khoá các món → kiểm tra còn bán, đủ tồn kho, topping còn bán → kiểm tra mã giảm giá → tạo đơn + bản chụp món → trừ kho → xoá giỏ → tạo thông báo cho admin. Lỗi ở bước nào cũng huỷ toàn bộ.
 
+## Giờ từng bước + dự kiến giao
+
+- Admin đổi trạng thái → `changeStatus` ghi giờ vào cột của bước đó (VD bấm "Bắt đầu giao" → `shipping_at = NOW()`).
+- "Dự kiến giao lúc …" tính ở frontend (`estimateDelivery` trong `lib/orders.ts`) theo cài đặt quán:
+  - Chờ xác nhận / đã xác nhận: (giờ xác nhận, chưa có thì giờ đặt) + `prepMinutes` + `deliveryMinutes`
+  - Đang giao: giờ bắt đầu giao + `deliveryMinutes`
+  - Hoàn thành / đã huỷ: không hiện
+
+## Thống kê
+
+- `GET /api/admin/stats?days=7|30|90` → biểu đồ theo ngày; `?year=2026` → biểu đồ theo tháng.
+- Mốc thời gian tính trong `admin/period.ts` (giờ Việt Nam). Năm đang diễn ra so với **cùng kỳ năm trước** (1/1 → hôm nay của năm trước) cho công bằng.
+- Báo cáo Excel nhận cùng tham số: cả năm thì sheet 2 là "Theo tháng".
+
 ## Thông báo
 
 - Đơn mới, khách huỷ đơn, món sắp hết, khách mới đăng ký, tin nhắn liên hệ → thông báo cho **mọi admin**.

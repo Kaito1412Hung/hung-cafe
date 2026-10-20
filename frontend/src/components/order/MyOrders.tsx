@@ -180,7 +180,7 @@ export function MyOrders() {
             </div>
 
             <div className="mt-6">
-              <OrderProgress status={order.status} />
+              <OrderProgress order={order} />
             </div>
 
             <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_280px]">

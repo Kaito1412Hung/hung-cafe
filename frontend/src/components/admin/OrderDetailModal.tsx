@@ -100,7 +100,7 @@ export function OrderDetailModal({ order, onClose, onChangeStatus }: OrderDetail
           <span className="text-sm text-coffee-600">Trạng thái hiện tại</span>
           <OrderStatusBadge status={order.status} />
         </div>
-        <OrderProgress status={order.status} />
+        <OrderProgress order={order} />
 
         <div className="grid gap-3 rounded-2xl bg-coffee-50 p-4 text-sm text-coffee-800 sm:grid-cols-2">
           <p className="font-semibold text-coffee-950 sm:col-span-2">{order.customerName}</p>

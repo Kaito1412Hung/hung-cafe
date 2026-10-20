@@ -16,6 +16,9 @@ export interface ShopSettings {
   tiktokUrl: string;
   shippingFee: number;
   freeShippingThreshold: number;
+  /** Số phút pha chế + giao hàng, dùng để tính "Dự kiến giao lúc …" */
+  prepMinutes: number;
+  deliveryMinutes: number;
 }
 
 /** Trạng thái mở cửa do server tính theo giờ Việt Nam */

@@ -24,21 +24,23 @@ function niceMax(v: number) {
   return step * pow;
 }
 
-const dayLabel = (iso: string) => {
-  const [, m, d] = iso.split("-");
+/** "2026-10-20" → "20/10"; theo tháng: "2026-10" → "Th10" (trục) / "Tháng 10/2026" (chú thích) */
+const pointLabel = (iso: string, long = false) => {
+  const [y, m, d] = iso.split("-");
+  if (d === undefined) return long ? `Tháng ${Number(m)}/${y}` : `Th${Number(m)}`;
   return `${d}/${m}`;
 };
 
 /**
- * Biểu đồ cột doanh thu theo ngày — 1 chuỗi số liệu nên dùng 1 màu, không cần chú thích.
+ * Biểu đồ cột doanh thu theo ngày (hoặc theo tháng khi xem cả năm) — 1 chuỗi số liệu nên dùng 1 màu, không cần chú thích.
  * Cột bo 4px ở đầu, khe 2px giữa các cột, lưới mờ, di chuột vào cột để xem chi tiết.
  */
-export function RevenueChart({ data }: { data: Point[] }) {
+export function RevenueChart({ data, unit = "day" }: { data: Point[]; unit?: "day" | "month" }) {
   const [hover, setHover] = useState<number | null>(null);
   const max = niceMax(Math.max(...data.map((d) => d.revenue)));
   const ticks = [max, max * 0.75, max * 0.5, max * 0.25, 0];
   // Nhiều ngày thì chỉ ghi nhãn cách quãng để chữ không chồng lên nhau
-  const labelEvery = data.length <= 7 ? 1 : data.length <= 31 ? 5 : 15;
+  const labelEvery = unit === "month" || data.length <= 7 ? 1 : data.length <= 31 ? 5 : 15;
   const hovered = hover !== null ? data[hover] : null;
 
   return (
@@ -73,7 +75,8 @@ export function RevenueChart({ data }: { data: Point[] }) {
                 >
                   <div
                     className={cn(
-                      "w-full max-w-10 rounded-t-[4px] transition-colors",
+                      "w-full rounded-t-[4px] transition-colors",
+                      unit === "month" ? "max-w-14" : "max-w-10",
                       d.revenue === 0 ? "bg-coffee-100" : hover === i ? "bg-coffee-900" : "bg-coffee-600",
                     )}
                     style={{ height: d.revenue === 0 ? "2px" : `${Math.max(h, 1.5)}%` }}
@@ -86,10 +89,10 @@ export function RevenueChart({ data }: { data: Point[] }) {
           {/* Tooltip */}
           {hovered && hover !== null && (
             <div
-              className="pointer-events-none absolute top-2 z-10 w-44 -translate-x-1/2 rounded-xl bg-white p-3 text-xs shadow-lg ring-1 ring-coffee-100"
-              style={{ left: `clamp(88px, ${((hover + 0.5) / data.length) * 100}%, calc(100% - 88px))` }}
+              className="pointer-events-none absolute top-2 z-10 w-52 -translate-x-1/2 rounded-xl bg-white p-3 text-xs shadow-lg ring-1 ring-coffee-100"
+              style={{ left: `clamp(104px, ${((hover + 0.5) / data.length) * 100}%, calc(100% - 104px))` }}
             >
-              <p className="font-semibold text-coffee-950">{dayLabel(hovered.date)}</p>
+              <p className="font-semibold text-coffee-950">{pointLabel(hovered.date, true)}</p>
               <div className="mt-1.5 flex items-center justify-between gap-2">
                 <span className="flex items-center gap-1.5 text-coffee-600">
                   <span className="h-2 w-2 rounded-sm bg-coffee-600" /> Doanh thu
@@ -107,7 +110,7 @@ export function RevenueChart({ data }: { data: Point[] }) {
           <div className="absolute inset-x-0 bottom-0 flex h-6 items-end gap-[2px]">
             {data.map((d, i) => (
               <span key={d.date} className="flex-1 text-center text-[11px] tabular-nums text-coffee-400">
-                {(i % labelEvery === 0 || i === data.length - 1) && (data.length - 1 - i >= labelEvery / 2 || i === data.length - 1) ? dayLabel(d.date) : ""}
+                {(i % labelEvery === 0 || i === data.length - 1) && (data.length - 1 - i >= labelEvery / 2 || i === data.length - 1) ? pointLabel(d.date) : ""}
               </span>
             ))}
           </div>
@@ -116,10 +119,10 @@ export function RevenueChart({ data }: { data: Point[] }) {
 
       {/* Bảng dữ liệu cho trình đọc màn hình */}
       <table className="sr-only">
-        <caption>Doanh thu theo ngày</caption>
+        <caption>{unit === "month" ? "Doanh thu theo tháng" : "Doanh thu theo ngày"}</caption>
         <thead>
           <tr>
-            <th>Ngày</th>
+            <th>{unit === "month" ? "Tháng" : "Ngày"}</th>
             <th>Doanh thu</th>
             <th>Số đơn</th>
           </tr>
@@ -127,7 +130,7 @@ export function RevenueChart({ data }: { data: Point[] }) {
         <tbody>
           {data.map((d) => (
             <tr key={d.date}>
-              <td>{dayLabel(d.date)}</td>
+              <td>{pointLabel(d.date, true)}</td>
               <td>{formatPrice(d.revenue)}</td>
               <td>{d.orders}</td>
             </tr>

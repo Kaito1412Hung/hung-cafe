@@ -81,5 +81,10 @@ export interface Order {
   cancelReason: string;
   createdAt: Date;
   updatedAt: Date;
+  /** Giờ của từng bước (null = chưa tới bước đó) */
+  confirmedAt: Date | null;
+  shippingAt: Date | null;
+  completedAt: Date | null;
+  cancelledAt: Date | null;
   items: OrderItem[];
 }

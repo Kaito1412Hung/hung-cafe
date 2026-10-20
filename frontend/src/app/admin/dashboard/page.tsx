@@ -13,7 +13,7 @@ import { ORDER_STATUS, ORDER_STATUS_LIST, formatDateTime, formatOrderCode } from
 import { cn, formatPrice } from "@/lib/utils";
 import { displayName } from "@/lib/user";
 import { adminService } from "@/services/adminService";
-import type { DashboardStats } from "@/types/stats";
+import type { DashboardStats, StatsPeriod } from "@/types/stats";
 
 const RANGES = [
   { days: 7, label: "7 ngày" },
@@ -21,8 +21,14 @@ const RANGES = [
   { days: 90, label: "90 ngày" },
 ];
 
+/** Năm hiện tại theo giờ Việt Nam */
+const thisYear = () => Number(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh", year: "numeric" }));
+
+/** Khoá để biết dữ liệu đang hiện có đúng khoảng đang chọn không */
+const periodKey = (p: StatsPeriod) => (p.kind === "days" ? `d${p.days}` : `y${p.year}`);
+
 /** % thay đổi so với kỳ trước */
-function Delta({ current, previous }: { current: number; previous: number }) {
+function Delta({ current, previous, compareLabel }: { current: number; previous: number; compareLabel: string }) {
   if (previous === 0) {
     return <span className="text-xs text-coffee-400">{current > 0 ? "Mới phát sinh kỳ này" : "Chưa có dữ liệu kỳ trước"}</span>;
   }
@@ -32,7 +38,7 @@ function Delta({ current, previous }: { current: number; previous: number }) {
     <span className={cn("inline-flex items-center gap-0.5 text-xs font-medium", up ? "text-emerald-700" : "text-red-700")}>
       {up ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
       {up ? "+" : ""}
-      {pct}% <span className="font-normal text-coffee-400">so với kỳ trước</span>
+      {pct}% <span className="font-normal text-coffee-400">{compareLabel}</span>
     </span>
   );
 }
@@ -58,16 +64,24 @@ const viewAll = (href: string) => (
 export default function AdminDashboardPage() {
   const toast = useToast();
   const { user } = useAuth();
-  const [days, setDays] = useState(7);
-  const [result, setResult] = useState<{ days: number; stats: DashboardStats } | null>(null);
-  const stats = result?.days === days ? result.stats : null;
+  const [period, setPeriod] = useState<StatsPeriod>({ kind: "days", days: 7 });
+  const [result, setResult] = useState<{ key: string; stats: DashboardStats } | null>(null);
+  const stats = result?.key === periodKey(period) ? result.stats : null;
+  // Danh sách năm giữ lại từ lần tải trước để ô chọn năm không bị nháy khi đổi năm
+  const years = result?.stats.years ?? [thisYear()];
   const [exporting, setExporting] = useState(false);
+
+  const isYear = period.kind === "year";
+  const periodText = isYear
+    ? `năm ${period.year}${period.year === thisYear() ? " (từ tháng 1 đến nay)" : ""}`
+    : `${period.days} ngày gần nhất`;
+  const compareLabel = isYear ? "so với cùng kỳ năm trước" : "so với kỳ trước";
 
   /** Tải file Excel báo cáo cùng khoảng thời gian đang chọn */
   const handleExport = async () => {
     setExporting(true);
     try {
-      const { blob, fileName } = await adminService.downloadRevenueReport(days);
+      const { blob, fileName } = await adminService.downloadRevenueReport(period);
       // Tạo link tạm trỏ tới file rồi "bấm" để trình duyệt tải về
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -86,13 +100,13 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     let cancelled = false;
     adminService
-      .getStats(days)
-      .then((s) => !cancelled && setResult({ days, stats: s }))
+      .getStats(period)
+      .then((s) => !cancelled && setResult({ key: periodKey(period), stats: s }))
       .catch((err: Error) => !cancelled && toast(err.message, "error"));
     return () => {
       cancelled = true;
     };
-  }, [days, toast]);
+  }, [period, toast]);
 
   const kpis = stats
     ? [
@@ -113,7 +127,7 @@ export default function AdminDashboardPage() {
         <div>
           <p className="text-sm text-coffee-500">Quản lý / Tổng quan</p>
           <h1 className="mt-1 font-display text-3xl font-bold text-coffee-950">Xin chào, {user ? displayName(user) : ""} 👋</h1>
-          <p className="mt-1 text-coffee-600">Tình hình kinh doanh của quán trong {days} ngày gần nhất.</p>
+          <p className="mt-1 text-coffee-600">Tình hình kinh doanh của quán trong {periodText}.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={handleExport} loading={exporting} className="bg-white">
@@ -123,16 +137,40 @@ export default function AdminDashboardPage() {
             {RANGES.map((r) => (
               <button
                 key={r.days}
-                onClick={() => setDays(r.days)}
+                onClick={() => setPeriod({ kind: "days", days: r.days })}
                 className={cn(
                   "cursor-pointer whitespace-nowrap rounded-lg px-3.5 py-1.5 text-sm font-medium transition",
-                  days === r.days ? "bg-coffee-900 text-cream" : "text-coffee-600 hover:bg-coffee-50",
+                  period.kind === "days" && period.days === r.days ? "bg-coffee-900 text-cream" : "text-coffee-600 hover:bg-coffee-50",
                 )}
               >
                 {r.label}
               </button>
             ))}
+            <button
+              onClick={() => !isYear && setPeriod({ kind: "year", year: years[0] })}
+              className={cn(
+                "cursor-pointer whitespace-nowrap rounded-lg px-3.5 py-1.5 text-sm font-medium transition",
+                isYear ? "bg-coffee-900 text-cream" : "text-coffee-600 hover:bg-coffee-50",
+              )}
+            >
+              Cả năm
+            </button>
           </div>
+          {/* Có từ 2 năm dữ liệu trở lên thì cho chọn năm */}
+          {isYear && years.length > 1 && (
+            <select
+              value={period.year}
+              onChange={(e) => setPeriod({ kind: "year", year: Number(e.target.value) })}
+              className="h-10 cursor-pointer rounded-xl bg-white px-3 text-sm font-medium text-coffee-900 shadow-sm ring-1 ring-coffee-100 outline-none focus:ring-2 focus:ring-coffee-400"
+              aria-label="Chọn năm"
+            >
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  Năm {y}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
@@ -164,7 +202,7 @@ export default function AdminDashboardPage() {
                 </span>
               </div>
               <p className="mt-2 text-2xl font-bold tabular-nums text-coffee-950">{k.value}</p>
-              <div className="mt-1 min-h-5">{k.delta ? <Delta {...k.delta} /> : <span className="text-xs text-coffee-400">Tính trên đơn đã hoàn thành</span>}</div>
+              <div className="mt-1 min-h-5">{k.delta ? <Delta {...k.delta} compareLabel={compareLabel} /> : <span className="text-xs text-coffee-400">Tính trên đơn đã hoàn thành</span>}</div>
             </div>
           ) : (
             <div key={i} className="h-[124px] animate-pulse rounded-2xl bg-white ring-1 ring-coffee-100" />
@@ -175,18 +213,18 @@ export default function AdminDashboardPage() {
       <div className="grid gap-6 xl:grid-cols-3">
         {/* Biểu đồ doanh thu */}
         <Card
-          title="Doanh thu theo ngày"
+          title={isYear ? `Doanh thu theo tháng · ${period.year}` : "Doanh thu theo ngày"}
           className="xl:col-span-2"
           action={<span className="text-xs text-coffee-400">Chỉ tính đơn đã hoàn thành</span>}
         >
-          {stats ? <RevenueChart data={stats.daily} /> : <div className="h-64 animate-pulse rounded-xl bg-coffee-50" />}
+          {stats ? <RevenueChart data={stats.chart.points} unit={stats.chart.unit} /> : <div className="h-64 animate-pulse rounded-xl bg-coffee-50" />}
         </Card>
 
         {/* Trạng thái đơn */}
         <Card title="Trạng thái đơn hàng">
           {stats ? (
             statusTotal === 0 ? (
-              <p className="py-10 text-center text-sm text-coffee-500">Chưa có đơn nào trong {days} ngày qua.</p>
+              <p className="py-10 text-center text-sm text-coffee-500">Chưa có đơn nào trong {periodText}.</p>
             ) : (
               <ul className="space-y-3">
                 {ORDER_STATUS_LIST.map((s) => {

@@ -74,8 +74,8 @@ npm run dev                 # http://localhost:4000
 | DELETE | `/api/reviews/:id`               | Người viết / Admin | Xoá đánh giá                     |
 | GET    | `/api/favorites`                 | Đã đăng nhập | Món yêu thích                          |
 | PUT / DELETE | `/api/favorites/:productId` | Đã đăng nhập | Thả tim / bỏ tim                       |
-| GET    | `/api/admin/reports/revenue?days=30` | **Admin** | Tải file Excel báo cáo doanh thu (4 sheet) |
-| GET    | `/api/admin/stats?days=7`        | **Admin**    | Số liệu trang Tổng quan (7/30/90 ngày) |
+| GET    | `/api/admin/reports/revenue?days=30` | **Admin** | Tải file Excel báo cáo doanh thu (4 sheet); `?year=2026` = cả năm, sheet theo tháng |
+| GET    | `/api/admin/stats?days=7`        | **Admin**    | Số liệu trang Tổng quan (7/30/90 ngày); `?year=2026` = cả năm, biểu đồ theo tháng |
 | GET    | `/api/admin/customers`           | **Admin**    | Danh sách tài khoản (`?role=customer&search=`) |
 | GET    | `/api/admin/customers/:id`       | **Admin**    | Chi tiết + lịch sử đơn                 |
 | PATCH  | `/api/admin/customers/:id/role`  | **Admin**    | Đổi quyền `{ role }`                   |

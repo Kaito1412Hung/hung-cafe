@@ -21,6 +21,8 @@ const FALLBACK: ShopSettings = {
   tiktokUrl: "",
   shippingFee: 15_000,
   freeShippingThreshold: 200_000,
+  prepMinutes: 15,
+  deliveryMinutes: 25,
 };
 
 /** Kiểm tra lại trạng thái mở cửa mỗi 5 phút (VD: đang mở trang thì tới giờ đóng cửa) */
