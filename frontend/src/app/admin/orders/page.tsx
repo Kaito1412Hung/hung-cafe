@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Clock, PackageCheck, Receipt, Search, Truck, Wallet } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
@@ -35,6 +35,9 @@ function AdminOrders() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  // Đơn mở từ thông báo nhưng chưa có trong danh sách đang hiển thị (đơn vừa đặt / đang lọc trạng thái khác)
+  const [linked, setLinked] = useState<Order | null>(null);
+  const handledParam = useRef<number | null>(null);
 
   // Kết quả gắn với "key" của bộ lọc → biết dữ liệu đang hiển thị có khớp bộ lọc hiện tại không
   const queryKey = `${status}|${debouncedSearch}`;
@@ -58,12 +61,33 @@ function AdminOrders() {
     };
   }, [status, debouncedSearch, queryKey, toast]);
 
+  /**
+   * Bấm thông báo đơn mới khi đang ở sẵn trang này: danh sách đã tải từ trước nên CHƯA có đơn đó
+   * → lấy riêng đơn đó để mở ngay, đồng thời tải lại danh sách (đơn mới + số đếm) mà không phải F5.
+   */
+  useEffect(() => {
+    if (!orderParam || !result || result.key !== queryKey) return;
+    if (result.orders.some((o) => o.id === orderParam) || handledParam.current === orderParam) return;
+    handledParam.current = orderParam;
+    orderService
+      .getById(orderParam)
+      .then(setLinked)
+      .catch((err: Error) => toast(err.message, "error"));
+    orderService
+      .getAll({ status, search: debouncedSearch })
+      // Chỉ cập nhật nếu bộ lọc chưa đổi trong lúc chờ
+      .then((res) => setResult((prev) => (prev?.key === queryKey ? { key: queryKey, orders: res.data, summary: res.summary } : prev)))
+      .catch(() => {});
+  }, [orderParam, result, queryKey, status, debouncedSearch, toast]);
+
   const orders = useMemo(() => result?.orders ?? [], [result]);
   const summary = result?.summary;
-  const selected = orders.find((o) => o.id === (selectedId ?? orderParam)) ?? null;
+  const activeId = selectedId ?? orderParam;
+  const selected = orders.find((o) => o.id === activeId) ?? (linked?.id === activeId ? linked : null);
 
   const closeDetail = () => {
     setSelectedId(null);
+    handledParam.current = null;
     if (orderParam) router.replace(pathname, { scroll: false });
   };
 
@@ -74,6 +98,7 @@ function AdminOrders() {
   const handleChangeStatus = async (order: Order, next: OrderStatus, reason = "") => {
     try {
       const updated = await orderService.updateStatus(order.id, next, reason);
+      setLinked((prev) => (prev?.id === updated.id ? updated : prev));
       // Cập nhật tại chỗ: thay đơn trong danh sách + chỉnh lại số đếm
       setResult((prev) => {
         if (!prev) return prev;
