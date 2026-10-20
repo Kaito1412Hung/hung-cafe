@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Search, SearchX } from "lucide-react";
 import { Select } from "@/components/ui/FormField";
 import { useProducts } from "@/hooks/useProducts";
+import { normalizeSearch } from "@/lib/utils";
 import { useCategories } from "@/context/CategoriesContext";
 import type { Category } from "@/types/product";
 import { CategoryTabs } from "./CategoryTabs";
@@ -20,9 +21,10 @@ export function MenuBrowser() {
 
   // useMemo: chỉ tính lại danh sách khi dữ liệu hoặc bộ lọc thay đổi
   const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    // Tìm không dấu: "ca phe" vẫn ra "Cà Phê Sữa Đá"
+    const q = normalizeSearch(query);
     const list = products.filter(
-      (p) => (category === "all" || p.category === category) && p.name.toLowerCase().includes(q),
+      (p) => (category === "all" || p.category === category) && normalizeSearch(p.name).includes(q),
     );
     return [...list].sort((a, b) => {
       if (sort === "price-asc") return a.price - b.price;

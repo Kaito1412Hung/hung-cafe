@@ -22,3 +22,18 @@ export function unsplash(id: string, width = 800) {
 
 /** "07:00" → "7:00" cho dễ đọc */
 export const formatHour = (hhmm: string) => hhmm.replace(/^0(\d)/, "$1");
+
+/**
+ * Chuẩn hoá chữ để tìm kiếm KHÔNG DẤU: "Cà Phê  Đá" → "ca phe da".
+ * So sánh cả tên món lẫn từ khoá sau khi chuẩn hoá → gõ "ca phe" hay "cà phê" đều ra.
+ */
+export function normalizeSearch(text: string) {
+  return text
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // bỏ dấu thanh + dấu mũ
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "d")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}

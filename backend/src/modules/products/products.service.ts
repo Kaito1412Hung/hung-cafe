@@ -42,8 +42,9 @@ export async function findAll(filters: ProductFilters = {}): Promise<Product[]> 
     conditions.push(`category = $${values.length}`);
   }
   if (filters.search) {
-    values.push(`%${filters.search}%`);
-    conditions.push(`name ILIKE $${values.length}`);
+    // Tìm không dấu: so thêm với slug (đã bỏ dấu sẵn) → "ca phe" khớp "ca-phe-sua-da"
+    values.push(`%${filters.search}%`, `%${slugify(filters.search)}%`);
+    conditions.push(`(name ILIKE $${values.length - 1} OR slug ILIKE $${values.length})`);
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";

@@ -42,7 +42,8 @@ export function Navbar() {
       <nav className="mx-auto flex h-18 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Logo />
 
-        <ul className="hidden items-center gap-1 md:flex">
+        {/* Đủ 4 link chỉ hiện từ màn hình 1024px (lg); nhỏ hơn (điện thoại, máy tính bảng) dùng nút ☰ cho khỏi chật */}
+        <ul className="hidden items-center gap-1 lg:flex">
           {NAV_LINKS.map((link) => {
             const active = link.href === pathname;
             return (
@@ -50,7 +51,7 @@ export function Navbar() {
                 <SectionLink
                   href={link.href}
                   className={cn(
-                    "rounded-full px-4 py-2 text-sm font-medium transition",
+                    "whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition",
                     active ? "bg-coffee-900 text-cream" : "text-coffee-700 hover:bg-coffee-100 hover:text-coffee-950",
                   )}
                 >
@@ -79,7 +80,7 @@ export function Navbar() {
           <UserMenu />
           <button
             onClick={() => setOpen(!open)}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-coffee-900 hover:bg-coffee-100 md:hidden"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-coffee-900 hover:bg-coffee-100 lg:hidden"
             aria-label="Mở menu"
           >
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -89,7 +90,7 @@ export function Navbar() {
 
       {/* Menu mobile */}
       {open && (
-        <div className="border-t border-coffee-100 bg-cream px-4 pb-6 pt-2 md:hidden">
+        <div className="border-t border-coffee-100 bg-cream px-4 pb-6 pt-2 lg:hidden">
           <ul className="space-y-1">
             {NAV_LINKS.map((link) => (
               <li key={link.href}>

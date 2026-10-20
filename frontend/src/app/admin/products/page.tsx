@@ -11,6 +11,7 @@ import { Pagination } from "@/components/admin/Pagination";
 import { ProductFormModal } from "@/components/admin/ProductFormModal";
 import { DeleteProductDialog } from "@/components/admin/DeleteProductDialog";
 import { useProducts } from "@/hooks/useProducts";
+import { normalizeSearch } from "@/lib/utils";
 import { useCategories } from "@/context/CategoriesContext";
 import type { Category, Product, ProductInput } from "@/types/product";
 
@@ -38,9 +39,9 @@ export default function AdminProductsPage() {
   const [togglingId, setTogglingId] = useState<number | null>(null);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = normalizeSearch(query); // tìm không dấu
     const list = products.filter((p) => {
-      if (q && !p.name.toLowerCase().includes(q)) return false;
+      if (q && !normalizeSearch(p.name).includes(q)) return false;
       if (category !== "all" && p.category !== category) return false;
       if (status === "available" && !p.isAvailable) return false;
       if (status === "unavailable" && p.isAvailable) return false;
