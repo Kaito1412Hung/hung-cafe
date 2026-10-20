@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS categories (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 INSERT INTO categories (slug, name, sort_order) VALUES
-  ('coffee', 'Cà phê', 1), ('tea', 'Trà', 2), ('freeze', 'Đá xay & Soda', 3), ('cake', 'Bánh ngọt', 4)
+  ('coffee', 'Cà phê', 1), ('tea', 'Trà', 2), ('milktea', 'Trà sữa', 3), ('freeze', 'Đá xay & Soda', 4),
+  ('juice', 'Nước ép & Sinh tố', 5), ('cake', 'Bánh ngọt', 6), ('snack', 'Đồ ăn nhẹ', 7)
 ON CONFLICT (slug) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS products (

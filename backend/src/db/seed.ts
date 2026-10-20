@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import { pool } from "./pool";
-import { SEED_PRODUCTS } from "./seed-data";
+import { NO_OPTION_CATEGORIES, SEED_PRODUCTS } from "./seed-data";
 
 async function upsertUser(name: string, email: string | undefined, password: string | undefined, role: "admin" | "customer") {
   if (!email || !password) {
@@ -32,8 +32,8 @@ export async function seed() {
     await pool.query(
       `INSERT INTO products (name, description, price, category, image, stock, is_available, is_best_seller, has_options)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      // Bánh không có chọn size / đường / đá
-      [p.name, p.description, p.price, p.category, p.image, p.stock, p.isAvailable, p.isBestSeller, p.category !== "cake"],
+      // Bánh và đồ ăn nhẹ không có chọn size / đường / đá
+      [p.name, p.description, p.price, p.category, p.image, p.stock, p.isAvailable, p.isBestSeller, !NO_OPTION_CATEGORIES.includes(p.category)],
     );
   }
   console.log(`✅ Đã thêm ${SEED_PRODUCTS.length} sản phẩm mẫu`);
