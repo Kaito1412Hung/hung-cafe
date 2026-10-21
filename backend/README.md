@@ -19,6 +19,11 @@ npm run dev                 # http://localhost:4000
 | `npm run dev`      | Chạy server, tự khởi động lại khi sửa code               |
 | `npm run db:setup` | Tạo DB/bảng/dữ liệu mẫu (chạy lại nhiều lần vẫn an toàn) |
 | `npm run build`    | Biên dịch TypeScript → `dist/`                            |
+| `npm run db:snapshot` | Chụp database vào `.db-snapshots/` (giữ 10 bản mới nhất, không lên git) |
+| `npm run db:compare`  | So database hiện tại với bản chụp mới nhất, từng bảng |
+| `npm run db:restore`  | Khôi phục bản chụp (hỏi lại trước, `-- --yes` để bỏ qua) |
+| `npm run test-accounts` | Xem / xoá (`-- --clean`) dữ liệu của tài khoản test |
+| `npm run check:secrets` | Kiểm tra không có file / giá trị bí mật nào sắp lên GitHub |
 | `npm start`        | Chạy bản đã build (dùng khi deploy)                       |
 
 ## API

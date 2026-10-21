@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run typecheck*)",
+      "Bash(npm run lint*)",
+      "Bash(npm run build*)",
+      "Bash(npm run db:snapshot*)",
+      "Bash(npm run db:compare*)",
+      "Bash(npm run test-accounts)",
+      "Bash(npm run check:secrets*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)"
+    ],
+    "ask": [
+      "Bash(git push*)",
+      "Bash(git commit*)",
+      "Bash(git reset*)",
+      "Bash(npm run db:restore*)",
+      "Bash(npm run test-accounts -- --clean*)",
+      "Bash(npm run db:setup*)"
+    ],
+    "deny": [
+      "Read(./backend/.env)",
+      "Read(./frontend/.env.local)",
+      "Read(./**/.env)",
+      "Read(./**/.env.local)",
+      "Edit(./backend/.env)",
+      "Edit(./frontend/.env.local)",
+      "Edit(./**/.env)",
+      "Edit(./**/.env.local)",
+      "Bash(cat backend/.env*)",
+      "Bash(cat frontend/.env*)",
+      "Bash(cat .env*)"
+    ]
+  }
+}

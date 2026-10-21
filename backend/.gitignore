@@ -3,3 +3,5 @@ dist
 .env
 # Ảnh admin tải lên (không đưa lên GitHub)
 /uploads
+# Bản chụp database (npm run db:snapshot) — chứa dữ liệu thật, không đưa lên GitHub
+/.db-snapshots

@@ -1,2 +1,8 @@
 # File hướng dẫn test riêng, không đưa lên GitHub
 HUONG-DAN-TEST.md
+
+# Chặn thêm lần nữa ở thư mục gốc: file bí mật ở bất kỳ đâu (trừ file mẫu)
+.env
+.env.*
+!.env.example
+*.dump

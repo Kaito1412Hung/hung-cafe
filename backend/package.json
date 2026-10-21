@@ -9,7 +9,12 @@
     "start": "node dist/server.js",
     "db:setup": "tsx src/db/setup.ts",
     "db:seed": "tsx src/db/seed.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:snapshot": "tsx scripts/db-snapshot.ts",
+    "db:compare": "tsx scripts/db-compare.ts",
+    "db:restore": "tsx scripts/db-restore.ts",
+    "test-accounts": "tsx scripts/test-accounts.ts",
+    "check:secrets": "tsx scripts/check-secrets.ts"
   },
   "author": "",
   "license": "ISC",
