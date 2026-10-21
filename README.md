@@ -29,6 +29,8 @@
 - **Bảo mật:** mật khẩu băm bcrypt, JWT trong **cookie httpOnly**, thu hồi phiên ("đăng xuất mọi thiết bị"), chống dò mật khẩu, giới hạn tần suất gửi form, helmet, kiểm tra mọi dữ liệu gửi lên bằng **zod**.
 - **SQL thuần, không ORM:** tự viết truy vấn bằng `pg`. Schema nâng cấp được nhiều lần (`IF NOT EXISTS`, khối `DO $$`) mà không mất dữ liệu cũ.
 - **Giờ Việt Nam ở mọi nơi:** lưu `TIMESTAMPTZ`, tính và hiển thị theo `Asia/Ho_Chi_Minh` (đơn hàng, thống kê, file Excel), máy chủ đặt ở múi giờ nào cũng đúng.
+- **Ảnh món lưu trên Cloudinary:** upload có chữ ký (secret không rời máy chủ), tự chọn định dạng nhẹ nhất (`f_auto,q_auto`, ảnh nhẹ hơn khoảng 3 lần). Máy chủ không giữ file nên deploy lại không mất ảnh. Chưa điền mã thì tự lưu ổ cứng như cũ.
+- **Tài liệu API bằng Swagger** (`/api/docs`, chuẩn OpenAPI 3.1): 78 API chia 11 nhóm, bấm thử ngay trên trình duyệt. Phần "gửi lên gì" sinh tự động từ schema **zod** đang dùng để kiểm tra dữ liệu, nên tài liệu không bao giờ lệch với code.
 - **Thống kê cho chủ quán:** doanh thu theo 7 / 30 / 90 ngày hoặc cả năm theo tháng, món bán chạy, xuất báo cáo **Excel**.
 
 ## 📸 Hình ảnh
@@ -56,6 +58,7 @@ flowchart LR
     B -- "SQL thuần (pg)" --> D[("PostgreSQL")]
     B -- "link thanh toán có chữ ký" --> V["VNPay"]
     V -- "kết quả (return + IPN)" --> B
+    B -- "ảnh món (upload có chữ ký)" --> C["Cloudinary<br/>(lưu ảnh)"]
 ```
 
 Backend chia theo module: `routes → controller → service (SQL) → schema (zod)`. Luồng chi tiết (đặt hàng, VNPay, thống kê) xem ở [docs/kien-truc.md](docs/kien-truc.md).
@@ -89,7 +92,7 @@ cd backend
 npm install
 cp .env.example .env      # sửa DATABASE_URL (mật khẩu postgres) và JWT_SECRET
 npm run db:setup          # tạo database, bảng và dữ liệu mẫu
-npm run dev               # http://localhost:4000
+npm run dev               # http://localhost:4000  (tài liệu API: /api/docs)
 
 # 2. Frontend (mở terminal khác)
 cd frontend
@@ -99,6 +102,8 @@ npm run dev               # http://localhost:3000
 ```
 
 Tài khoản mẫu (admin + khách) lấy theo các biến `SEED_*` trong `backend/.env`.
+
+Muốn lưu ảnh món trên cloud: đăng ký miễn phí tại [cloudinary.com](https://cloudinary.com), điền `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` vào `backend/.env`. Không điền thì ảnh lưu trong thư mục `backend/uploads/`.
 
 Muốn bật VNPay: đăng ký tài khoản sandbox tại [sandbox.vnpayment.vn](https://sandbox.vnpayment.vn/devreg/), điền `VNP_TMN_CODE` và `VNP_HASH_SECRET` vào `backend/.env`. Không điền thì web chỉ có thanh toán tiền mặt.
 
@@ -112,6 +117,7 @@ docs/       Tài liệu: cấu trúc database, luồng hoạt động chính, h�
 
 ## 📚 Tài liệu
 
+- 📖 **Tài liệu API tương tác (Swagger):** chạy backend rồi mở http://localhost:4000/api/docs
 - [Danh sách API](backend/README.md#api)
 - [Cấu trúc database](docs/database.md)
 - [Các phần nối với nhau thế nào](docs/kien-truc.md)
@@ -119,7 +125,7 @@ docs/       Tài liệu: cấu trúc database, luồng hoạt động chính, h�
 ## 🗺️ Dự định phát triển
 
 - [ ] Deploy lên mạng + tài khoản demo để xem thử
-- [ ] Tài liệu API bằng Swagger (`/api/docs`)
+- [x] Tài liệu API bằng Swagger (`/api/docs`)
 - [ ] Test tự động (Jest cho backend, Playwright cho giao diện)
 - [ ] Realtime bằng Socket.IO: admin thấy đơn mới ngay, khách thấy đơn đổi trạng thái không cần tải lại
 - [ ] CI/CD bằng GitHub Actions

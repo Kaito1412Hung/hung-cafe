@@ -1,5 +1,5 @@
 import { app } from "./app";
-import { env } from "./config/env";
+import { cloudinaryEnabled, env } from "./config/env";
 import { pool } from "./db/pool";
 import { expireUnpaidOrders } from "./modules/orders/orders.service";
 
@@ -15,6 +15,7 @@ async function main() {
 
   app.listen(env.PORT, () => {
     console.log(`🚀 API đang chạy tại http://localhost:${env.PORT}`);
+    console.log(cloudinaryEnabled ? "🖼️  Ảnh món lưu trên Cloudinary" : "🖼️  Ảnh món lưu trong thư mục uploads/ (chưa điền mã Cloudinary)");
   });
 
   // Mỗi phút: huỷ đơn VNPay quá hạn chưa thanh toán (trả kho + lượt mã giảm giá)

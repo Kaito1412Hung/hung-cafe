@@ -78,6 +78,7 @@ Chi tiết API: `backend/README.md`. Chi tiết bảng: `docs/database.md`. Lu�
 
 - Chữ trên giao diện và thông báo lỗi: **tiếng Việt có dấu**. Tên biến / hàm: tiếng Anh.
 - Lỗi API luôn có dạng `{ message, errors? }` (dùng `AppError`).
+- Thêm / sửa API → cập nhật `backend/src/docs/openapi.ts` (Swagger ở `/api/docs`), body dùng lại schema zod của route.
 - Thêm cột / bảng: sửa `db/schema.ts` theo kiểu `IF NOT EXISTS` / khối `DO $$` để DB cũ nâng cấp được mà không mất dữ liệu.
 - Ngày giờ: lưu `TIMESTAMPTZ`, tính và hiển thị theo giờ Việt Nam (`SHOP_TIME_ZONE`, `vnParts`, `vnDate` trong `frontend/src/lib/utils.ts`); không dùng `toLocaleString` / `getHours` không ghi múi giờ.
 - Giá tiền là số nguyên (đồng). Đơn hàng lưu **bản chụp** tên + giá món / topping lúc đặt.

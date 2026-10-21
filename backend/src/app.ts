@@ -2,7 +2,9 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
+import swaggerUi from "swagger-ui-express";
 import { env } from "./config/env";
+import { openapiDoc } from "./docs/openapi";
 import { pool } from "./db/pool";
 import { authRouter } from "./modules/auth/auth.routes";
 import { productsRouter } from "./modules/products/products.routes";
@@ -61,6 +63,19 @@ app.use("/api/favorites", favoritesRouter);
 app.use("/api/toppings", toppingsRouter);
 app.use("/api/payments", paymentsRouter);
 app.use("/api/admin/reports", reportsRouter);
+
+// Tài liệu API (Swagger): xem và bấm thử mọi API tại /api/docs, bản JSON chuẩn OpenAPI tại /api/docs.json
+app.get("/api/docs.json", (_req, res) => {
+  res.json(openapiDoc);
+});
+app.use(
+  "/api/docs",
+  swaggerUi.serve,
+  swaggerUi.setup(openapiDoc, {
+    customSiteTitle: "Hưng Café API",
+    swaggerOptions: { docExpansion: "none", persistAuthorization: true, tryItOutEnabled: true },
+  }),
+);
 
 app.use(notFound);
 app.use(errorHandler);

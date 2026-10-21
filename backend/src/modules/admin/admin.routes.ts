@@ -37,7 +37,7 @@ adminRouter.get("/customers/:id", async (req, res) => {
   res.json({ data: await customersService.findById(parseId(req)) });
 });
 
-const roleSchema = z.object({ role: z.enum(["admin", "customer"], { error: "Vai trò không hợp lệ" }) });
+export const roleSchema = z.object({ role: z.enum(["admin", "customer"], { error: "Vai trò không hợp lệ" }) });
 
 adminRouter.patch("/customers/:id/role", validateBody(roleSchema), async (req, res) => {
   res.json({ data: await customersService.changeRole(req.user!.id, parseId(req), req.body.role) });

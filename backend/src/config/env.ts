@@ -22,6 +22,11 @@ const envSchema = z.object({
   VNP_RETURN_URL: z.string().default(""),
   /** Quá bao nhiêu phút chưa thanh toán thì tự huỷ đơn */
   PAYMENT_TIMEOUT_MINUTES: z.coerce.number().int().min(5).max(60).default(15),
+
+  // Lưu ảnh món trên Cloudinary (để trống → lưu vào ổ cứng máy chủ, thư mục uploads/)
+  CLOUDINARY_CLOUD_NAME: z.string().trim().default(""),
+  CLOUDINARY_API_KEY: z.string().trim().default(""),
+  CLOUDINARY_API_SECRET: z.string().trim().default(""),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -38,3 +43,5 @@ export const env = parsed.data;
 export const isProduction = env.NODE_ENV === "production";
 /** Đã điền mã VNPay trong .env chưa */
 export const vnpayEnabled = Boolean(env.VNP_TMN_CODE && env.VNP_HASH_SECRET);
+/** Đã điền đủ 3 mã Cloudinary trong .env chưa */
+export const cloudinaryEnabled = Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET);

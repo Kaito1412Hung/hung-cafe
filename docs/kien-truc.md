@@ -56,6 +56,16 @@ schema      zod: kiểm tra dữ liệu gửi lên (sai → 400 kèm lỗi từn
 5. Mỗi phút `expireUnpaidOrders` (gọi trong `server.ts`) huỷ đơn VNPay quá hạn chưa trả, trả kho + lượt mã. Khách trả muộn sau khi đơn đã huỷ → `refund_pending`.
 6. Không có mã VNPay trong `.env` → `vnpayEnabled = false`, web chỉ có tiền mặt.
 
+## Ảnh món (Cloudinary)
+
+1. Admin chọn ảnh → trình duyệt thu nhỏ ảnh (`lib/image.ts`) → gửi data URL cho `POST /api/uploads/products`.
+2. Backend kiểm tra: là admin, đúng JPG / PNG / WEBP, tối đa 2MB.
+3. Đã điền 3 mã `CLOUDINARY_*` trong `.env` (`cloudinaryEnabled`) → `uploadToCloudinary` (`cloudinary.ts`) gửi ảnh lên Cloudinary kèm **chữ ký SHA-1** (secret không gửi đi), nhận link `https://res.cloudinary.com/...`, chèn `f_auto,q_auto` để Cloudinary tự chọn định dạng nhẹ nhất. Ảnh nằm trong thư mục `hung-cafe/products`.
+4. Chưa điền mã → lưu vào ổ cứng `backend/uploads/products/`, link `/api/uploads/products/...` (như trước).
+5. Link ảnh được lưu vào cột `products.image`. Ảnh cũ (link Unsplash, ảnh đã lưu ổ cứng) giữ nguyên, không đổi.
+
+Vì sao cần Cloudinary: máy chủ deploy (VD Render bản miễn phí) **xoá ổ cứng mỗi lần deploy lại** → ảnh lưu ổ cứng sẽ mất. Máy chủ không nên giữ file ("stateless"), file để ở dịch vụ lưu trữ riêng.
+
 ## Thống kê
 
 - `GET /api/admin/stats?days=7|30|90` → biểu đồ theo ngày; `?year=2026` → biểu đồ theo tháng.
@@ -82,5 +92,5 @@ schema      zod: kiểm tra dữ liệu gửi lên (sai → 400 kèm lỗi từn
 ## Dữ liệu mẫu
 
 - `npm run db:setup` = `schema.ts` (tạo / nâng cấp bảng) + `seed.ts` (45 món, 7 danh mục, 6 topping, 2 tài khoản mẫu).
-- Ảnh món tải lên nằm trong `backend/uploads/` (không đưa lên git).
+- Ảnh món tải lên nằm trên **Cloudinary** (nếu đã điền mã) hoặc trong `backend/uploads/` (không đưa lên git).
 - Khách demo, đơn hàng năm 2026, đánh giá... **chỉ có trong database trên máy**, không nằm trên GitHub.

@@ -28,6 +28,10 @@ npm run dev                 # http://localhost:4000
 
 ## API
 
+> 📖 **Tài liệu tương tác (Swagger):** chạy backend rồi mở **http://localhost:4000/api/docs** — xem mọi API, gửi lên gì / trả về gì, bấm **Try it out** để gọi thử. Bản JSON chuẩn OpenAPI 3.1: `/api/docs.json`. Muốn thử API có 🔒 thì gọi `POST /api/auth/login` trước (cookie tự lưu).
+>
+> Thêm API mới → nhớ khai báo thêm vào `src/docs/openapi.ts` (phần body lấy thẳng từ schema zod).
+
 | Method | Endpoint             | Quyền        | Mô tả                                  |
 | ------ | -------------------- | ------------ | -------------------------------------- |
 | GET    | `/api/health`        | Ai cũng được | Kiểm tra server + DB                   |
@@ -44,7 +48,7 @@ npm run dev                 # http://localhost:4000
 | DELETE | `/api/products/:id`  | **Admin**    | Xoá                                    |
 | GET    | `/api/categories`                | Ai cũng được | Danh mục (kèm số món)                  |
 | POST/PUT/DELETE | `/api/categories(/:id)` | **Admin**    | Thêm / sửa `{ name, sortOrder }` / xoá (chặn nếu còn món) |
-| POST   | `/api/uploads/products`          | **Admin**    | Upload ảnh `{ image: dataURL }` → `{ url: "/api/uploads/products/..." }` |
+| POST   | `/api/uploads/products`          | **Admin**    | Upload ảnh `{ image: dataURL }` → `{ url }`: link Cloudinary nếu đã điền mã `CLOUDINARY_*`, không thì `/api/uploads/products/...` |
 | GET    | `/api/cart`                      | Đã đăng nhập | Xem giỏ hàng (kèm tổng số lượng, tạm tính) |
 | POST   | `/api/cart/items`                | Đã đăng nhập | Thêm món `{ productId, quantity, size?, sugar?, ice?, note? }` — cùng món + cùng lựa chọn thì cộng dồn, khác lựa chọn là dòng mới |
 | PATCH  | `/api/cart/items/:lineId`        | Đã đăng nhập | Đổi số lượng 1 dòng `{ quantity }` (lineId = `id` của dòng trong giỏ) |
@@ -112,6 +116,7 @@ src/
 ├── server.ts              # Điểm khởi động: kiểm tra DB rồi listen
 ├── app.ts                 # Khai báo middleware + route
 ├── config/env.ts          # Đọc & kiểm tra biến môi trường (zod)
+├── docs/openapi.ts        # Tài liệu API (Swagger) → /api/docs, body lấy từ schema zod
 ├── db/
 │   ├── pool.ts            # Kết nối PostgreSQL
 │   ├── schema.ts          # CREATE TABLE
@@ -121,7 +126,7 @@ src/
 │   ├── auth/              # routes → controller → service → DB
 │   ├── products/          # Có slug cho trang chi tiết
 │   ├── categories/        # Danh mục (bảng categories)
-│   ├── uploads/           # Upload ảnh sản phẩm → thư mục uploads/ (không đưa lên Git)
+│   ├── uploads/           # Upload ảnh sản phẩm → Cloudinary (cloudinary.ts) hoặc thư mục uploads/ (không đưa lên Git)
 │   ├── cart/              # Giỏ hàng (bảng cart_items)
 │   ├── orders/            # Đơn hàng (orders, order_items)
 │   ├── settings/          # Cài đặt cửa hàng (bảng settings, JSONB)
