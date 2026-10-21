@@ -47,6 +47,15 @@ schema      zod: kiểm tra dữ liệu gửi lên (sai → 400 kèm lỗi từn
 - Frontend tạo sẵn danh sách giờ mỗi 15 phút (`scheduleOptions` trong `lib/orders.ts`); backend vẫn kiểm tra lại.
 - "Dự kiến … lúc" ưu tiên giờ hẹn; đơn lấy tại quán đã pha xong thì không hiện dự kiến nữa.
 
+## Thanh toán VNPay
+
+1. Khách chọn VNPay → `checkout` tạo đơn (giữ món + mã giảm giá), `payment_status = pending`, hạn chót sau `PAYMENT_TIMEOUT_MINUTES` phút. **Chưa báo admin.**
+2. Frontend gọi `POST /api/payments/vnpay/:orderId` → backend tạo dòng `payments` + link VNPay có **chữ ký HMAC-SHA512** (`vnpay.ts`) → trình duyệt chuyển sang VNPay.
+3. Khách trả xong, VNPay đưa về `/thanh-toan/ket-qua?...` → frontend gửi nguyên tham số cho `GET /api/payments/vnpay/return`. Khi deploy, VNPay còn gọi thẳng `GET /api/payments/vnpay/ipn`.
+4. `handleVnpayResult` (dùng chung cho return + IPN): **chữ ký đúng → mã giao dịch có thật → số tiền khớp → chưa xử lý** (khoá dòng trong transaction) → ghi `paid` → lúc này mới báo admin "Đơn hàng mới".
+5. Mỗi phút `expireUnpaidOrders` (gọi trong `server.ts`) huỷ đơn VNPay quá hạn chưa trả, trả kho + lượt mã. Khách trả muộn sau khi đơn đã huỷ → `refund_pending`.
+6. Không có mã VNPay trong `.env` → `vnpayEnabled = false`, web chỉ có tiền mặt.
+
 ## Thống kê
 
 - `GET /api/admin/stats?days=7|30|90` → biểu đồ theo ngày; `?year=2026` → biểu đồ theo tháng.

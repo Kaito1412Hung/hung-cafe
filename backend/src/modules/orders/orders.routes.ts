@@ -16,6 +16,7 @@ ordersRouter.post("/my/:id/reorder", controller.reorderMine);
 // Admin
 ordersRouter.get("/", requireRole("admin"), controller.listAll);
 ordersRouter.patch("/:id/status", requireRole("admin"), validateBody(updateStatusSchema), controller.updateStatus);
+ordersRouter.patch("/:id/refunded", requireRole("admin"), controller.markRefunded);
 
 // Chi tiết: admin hoặc chủ đơn
 ordersRouter.get("/:id", controller.getOne);

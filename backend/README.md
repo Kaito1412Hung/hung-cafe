@@ -52,6 +52,11 @@ npm run dev                 # http://localhost:4000
 | DELETE | `/api/cart`                      | Đã đăng nhập | Xoá toàn bộ giỏ                        |
 | POST   | `/api/orders`                    | Đã đăng nhập | Đặt hàng từ giỏ `{ customerName, phone, address, note, couponCode?, fulfillment?: "delivery" \| "pickup", scheduledAt?: ISO }` — lấy tại quán thì không cần địa chỉ, không tính phí giao |
 | GET    | `/api/orders/my`                 | Đã đăng nhập | Đơn hàng của tôi                       |
+| GET    | `/api/payments/config`           | Ai cũng được | Quán đã bật VNPay chưa, số phút giữ đơn |
+| POST   | `/api/payments/vnpay/:orderId`   | Chủ đơn      | Tạo link thanh toán VNPay (có chữ ký) cho đơn đang chờ trả |
+| GET    | `/api/payments/vnpay/return`     | Ai cũng được | Trang quay về gửi lại tham số VNPay → kiểm tra chữ ký, ghi nhận kết quả |
+| GET    | `/api/payments/vnpay/ipn`        | VNPay gọi    | Kết quả từ máy chủ VNPay (dùng khi deploy), trả `{ RspCode, Message }` |
+| PATCH  | `/api/orders/:id/refunded`       | **Admin**    | Đánh dấu đã hoàn tiền cho đơn VNPay đã trả nhưng bị huỷ |
 | PATCH  | `/api/orders/my/:id/cancel`      | Đã đăng nhập | Khách tự huỷ (chỉ khi "Chờ xác nhận"), lý do không bắt buộc `{ reason }` |
 | POST   | `/api/orders/my/:id/reorder`     | Đã đăng nhập | Mua lại: thêm các món của đơn cũ vào giỏ (bỏ qua món hết hàng) |
 | GET    | `/api/orders/:id`                | Admin / chủ đơn | Chi tiết đơn                        |

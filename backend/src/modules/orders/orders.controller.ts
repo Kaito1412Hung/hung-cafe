@@ -64,6 +64,11 @@ export async function listAll(req: Request, res: Response) {
   res.json({ data: orders, total, page, pageSize: pageSize ?? total, summary });
 }
 
+/** Admin bấm "Đã hoàn tiền" cho đơn VNPay đã trả nhưng bị huỷ */
+export async function markRefunded(req: Request, res: Response) {
+  res.json({ data: await orderService.markRefunded(parseId(req)) });
+}
+
 export async function updateStatus(req: Request, res: Response) {
   res.json({ data: await orderService.changeStatus(parseId(req), req.body.status, { reason: req.body.reason }) });
 }

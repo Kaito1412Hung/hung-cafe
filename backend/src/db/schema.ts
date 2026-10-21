@@ -296,6 +296,39 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ;
 ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_fulfillment_check;
 ALTER TABLE orders ADD CONSTRAINT orders_fulfillment_check CHECK (fulfillment IN ('delivery', 'pickup'));
 
+-- Thanh toán: cod = trả tiền mặt khi nhận, vnpay = trả online.
+-- payment_status: unpaid (COD chưa thu) / pending (chờ trả VNPay) / paid / refund_pending (đã trả nhưng đơn bị huỷ) / refunded / failed (quá hạn chưa trả)
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method VARCHAR(10) NOT NULL DEFAULT 'cod';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) NOT NULL DEFAULT 'unpaid';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_deadline TIMESTAMPTZ;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_payment_method_check;
+ALTER TABLE orders ADD CONSTRAINT orders_payment_method_check CHECK (payment_method IN ('cod', 'vnpay'));
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_payment_status_check;
+ALTER TABLE orders ADD CONSTRAINT orders_payment_status_check
+  CHECK (payment_status IN ('unpaid', 'pending', 'paid', 'refund_pending', 'refunded', 'failed'));
+-- Lần đầu thêm cột: đơn COD cũ đã hoàn thành coi như đã thu tiền
+UPDATE orders SET payment_status = 'paid', paid_at = completed_at
+  WHERE payment_method = 'cod' AND status = 'completed' AND payment_status = 'unpaid';
+
+-- Mỗi lần khách bấm thanh toán VNPay = 1 dòng (1 đơn có thể thử nhiều lần). Lưu nguyên dữ liệu VNPay gửi về để đối soát
+CREATE TABLE IF NOT EXISTS payments (
+  id             SERIAL PRIMARY KEY,
+  order_id       INTEGER      NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  provider       VARCHAR(20)  NOT NULL DEFAULT 'vnpay',
+  txn_ref        VARCHAR(100) NOT NULL UNIQUE,          -- mã giao dịch mình gửi cho VNPay
+  amount         INTEGER      NOT NULL CHECK (amount > 0),
+  status         VARCHAR(20)  NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'success', 'failed')),
+  response_code  VARCHAR(10)  NOT NULL DEFAULT '',
+  transaction_no VARCHAR(50)  NOT NULL DEFAULT '',      -- mã giao dịch phía VNPay
+  bank_code      VARCHAR(30)  NOT NULL DEFAULT '',
+  raw            JSONB,                                  -- toàn bộ tham số VNPay gửi về lần cuối
+  created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id);
+CREATE INDEX IF NOT EXISTS idx_orders_payment_pending ON orders(payment_deadline) WHERE payment_status = 'pending';
+
 CREATE INDEX IF NOT EXISTS idx_contact_messages_created ON contact_messages(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);

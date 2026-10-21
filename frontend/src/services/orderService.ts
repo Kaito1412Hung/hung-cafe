@@ -38,6 +38,11 @@ export const orderService = {
     return api<{ data: Order[]; total: number; summary: OrderSummary }>(`/orders${qs ? `?${qs}` : ""}`);
   },
 
+  /** Đơn VNPay đã trả nhưng bị huỷ: quán đã chuyển trả tiền cho khách */
+  async markRefunded(id: number): Promise<Order> {
+    return (await api<{ data: Order }>(`/orders/${id}/refunded`, { method: "PATCH" })).data;
+  },
+
   /** Huỷ đơn thì bắt buộc kèm lý do (khách sẽ thấy) */
   async updateStatus(id: number, status: OrderStatus, reason = ""): Promise<Order> {
     return (await api<{ data: Order }>(`/orders/${id}/status`, { method: "PATCH", body: JSON.stringify({ status, reason }) })).data;

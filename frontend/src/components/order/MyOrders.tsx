@@ -20,6 +20,8 @@ import { CancelReasonPicker } from "./CancelReasonPicker";
 import { OrderItemsList } from "./OrderItemsList";
 import { OrderProgress } from "./OrderProgress";
 import { FulfillmentTag } from "./FulfillmentTag";
+import { PaymentNotice } from "./PaymentNotice";
+import { PaymentTag } from "./PaymentTag";
 import { OrderStatusBadge } from "./OrderStatusBadge";
 
 /** Số đơn mỗi lần tải (bấm "Xem thêm" để tải tiếp) */
@@ -178,10 +180,15 @@ export function MyOrders() {
               <div>
                 <p className="font-display text-lg font-semibold text-coffee-950">Đơn {formatOrderCode(order.id)}</p>
                 <p className="text-sm text-coffee-500">Đặt lúc {formatDateTime(order.createdAt)}</p>
-                <FulfillmentTag order={order} className="mt-1.5" />
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  <FulfillmentTag order={order} />
+                  <PaymentTag order={order} />
+                </div>
               </div>
               <OrderStatusBadge status={order.status} fulfillment={order.fulfillment} />
             </div>
+
+            <PaymentNotice order={order} />
 
             <div className="mt-6">
               <OrderProgress order={order} />

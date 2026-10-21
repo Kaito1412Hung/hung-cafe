@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Banknote, Clock, Store } from "lucide-react";
+import { Banknote, Clock, CreditCard, Store } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/FormField";
@@ -15,8 +15,9 @@ import { ApiError } from "@/lib/api";
 import { formatOrderCode, scheduleOptions } from "@/lib/orders";
 import { cn, formatPrice } from "@/lib/utils";
 import { orderService } from "@/services/orderService";
+import { paymentService, type PaymentConfig } from "@/services/paymentService";
 import { profileService } from "@/services/profileService";
-import type { CheckoutInput, Fulfillment } from "@/types/order";
+import type { CheckoutInput, Fulfillment, PaymentMethod } from "@/types/order";
 
 type Errors = Partial<Record<keyof CheckoutInput, string>>;
 
@@ -58,7 +59,17 @@ export function CheckoutModal({ open, total, fulfillment, couponCode, onCouponIn
     note: "",
     fulfillment,
     scheduledAt: null,
+    paymentMethod: "cod",
   });
+  // Quán đã bật VNPay chưa (backend có mã VNPay trong .env)
+  const [payConfig, setPayConfig] = useState<PaymentConfig | null>(null);
+  useEffect(() => {
+    paymentService
+      .getConfig()
+      .then(setPayConfig)
+      .catch(() => setPayConfig({ vnpay: false, timeoutMinutes: 15 }));
+  }, []);
+  const vnpay = values.paymentMethod === "vnpay";
   // Giờ nhận: "asap" = càng sớm càng tốt, "later" = hẹn giờ (chọn ngày + giờ, mỗi 15 phút)
   const [timeMode, setTimeMode] = useState<"asap" | "later">("asap");
   // Tính 1 lần lúc mở form (cha đổi `key` mỗi lần mở nên luôn mới)
@@ -96,6 +107,18 @@ export function CheckoutModal({ open, total, fulfillment, couponCode, onCouponIn
           .then(updateUser)
           .catch(() => {});
       }
+      if (order.paymentMethod === "vnpay") {
+        // Đơn đã giữ món → chuyển sang trang VNPay để trả tiền (lỗi thì vẫn trả được ở "Đơn hàng của tôi")
+        try {
+          const { url } = await paymentService.createVnpayUrl(order.id);
+          window.location.href = url;
+          return;
+        } catch (err) {
+          toast(`Đã tạo đơn ${formatOrderCode(order.id)} nhưng chưa mở được VNPay: ${(err as Error).message}`, "error");
+          router.push(`/orders?new=${order.id}`);
+          return;
+        }
+      }
       toast(`Đặt hàng thành công! Mã đơn ${formatOrderCode(order.id)}`);
       router.push(`/orders?new=${order.id}`);
     } catch (err) {
@@ -122,7 +145,7 @@ export function CheckoutModal({ open, total, fulfillment, couponCode, onCouponIn
             Quay lại
           </Button>
           <Button type="submit" form="checkout-form" loading={submitting}>
-            Xác nhận đặt hàng · {formatPrice(total)}
+            {vnpay ? "Đặt hàng & thanh toán VNPay" : "Xác nhận đặt hàng"} · {formatPrice(total)}
           </Button>
         </>
       }
@@ -218,13 +241,57 @@ export function CheckoutModal({ open, total, fulfillment, couponCode, onCouponIn
           </label>
         )}
 
-        <div className="flex items-center gap-3 rounded-2xl bg-coffee-50 p-4">
-          <Banknote className="h-5 w-5 shrink-0 text-coffee-600" />
-          <div className="text-sm">
-            <p className="font-medium text-coffee-900">{pickup ? "Thanh toán tại quán khi lấy món" : "Thanh toán khi nhận hàng (COD)"}</p>
-            <p className="text-coffee-600">Thanh toán online sẽ có ở phiên bản sau.</p>
+        {/* Cách thanh toán */}
+        <fieldset>
+          <legend className="mb-2 text-sm font-medium text-coffee-900">Thanh toán</legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {(["cod", "vnpay"] as PaymentMethod[]).map((m) => {
+              const disabled = m === "vnpay" && !payConfig?.vnpay;
+              const Icon = m === "cod" ? Banknote : CreditCard;
+              return (
+                <label
+                  key={m}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-2.5 rounded-2xl p-3 text-sm ring-1 transition",
+                    values.paymentMethod === m ? "bg-coffee-50 ring-coffee-700" : "ring-coffee-200 hover:bg-coffee-50/60",
+                    disabled && "cursor-not-allowed opacity-50",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    checked={values.paymentMethod === m}
+                    disabled={disabled}
+                    onChange={() => setValues((prev) => ({ ...prev, paymentMethod: m }))}
+                    className="mt-0.5 accent-coffee-800"
+                  />
+                  <span>
+                    <span className="flex items-center gap-1.5 font-medium text-coffee-900">
+                      <Icon className="h-4 w-4 text-coffee-600" />
+                      {m === "cod" ? (pickup ? "Tiền mặt tại quán" : "Tiền mặt khi nhận hàng") : "VNPay"}
+                    </span>
+                    <span className="text-xs text-coffee-500">
+                      {m === "cod"
+                        ? "Trả tiền khi nhận món"
+                        : payConfig === null
+                          ? "Đang kiểm tra…"
+                          : disabled
+                            ? "Quán chưa bật thanh toán online"
+                            : "Thẻ ATM / QR ngân hàng, trả ngay khi đặt"}
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
           </div>
-        </div>
+          {vnpay && payConfig && (
+            <p className="mt-2 rounded-xl bg-sky-50 px-3 py-2 text-xs text-sky-800">
+              Bấm đặt hàng sẽ chuyển sang trang VNPay. Đơn được giữ <strong>{payConfig.timeoutMinutes} phút</strong>, quá thời gian chưa thanh toán thì tự huỷ.
+            </p>
+          )}
+          {errors.paymentMethod && <p className="mt-2 text-xs font-medium text-red-600">{errors.paymentMethod}</p>}
+        </fieldset>
+
         <p className="text-xs text-coffee-500">
           Bằng việc đặt hàng, bạn đồng ý với{" "}
           <Link href="/chinh-sach/giao-hang" target="_blank" className="underline hover:text-coffee-800">

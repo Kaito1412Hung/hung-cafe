@@ -19,6 +19,7 @@ import { reviewsRouter } from "./modules/reviews/reviews.routes";
 import { favoritesRouter } from "./modules/favorites/favorites.routes";
 import { reportsRouter } from "./modules/admin/reports.routes";
 import { toppingsRouter } from "./modules/toppings/toppings.routes";
+import { paymentsRouter } from "./modules/payments/payments.routes";
 import { errorHandler, notFound } from "./middlewares/errorHandler";
 
 export const app = express();
@@ -58,6 +59,7 @@ app.use("/api/coupons", couponsRouter);
 app.use("/api/reviews", reviewsRouter);
 app.use("/api/favorites", favoritesRouter);
 app.use("/api/toppings", toppingsRouter);
+app.use("/api/payments", paymentsRouter);
 app.use("/api/admin/reports", reportsRouter);
 
 app.use(notFound);

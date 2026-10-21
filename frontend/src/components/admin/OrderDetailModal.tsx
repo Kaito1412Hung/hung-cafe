@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, Mail, MapPin, Phone, Printer, StickyNote, Store, X } from "lucide-react";
+import { ArrowRight, CreditCard, Mail, MapPin, Phone, Printer, RotateCcw, StickyNote, Store, X } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { OrderItemsList } from "@/components/order/OrderItemsList";
 import { OrderProgress } from "@/components/order/OrderProgress";
 import { FulfillmentTag } from "@/components/order/FulfillmentTag";
+import { PaymentTag } from "@/components/order/PaymentTag";
 import { OrderStatusBadge } from "@/components/order/OrderStatusBadge";
 import { CancelReasonPicker } from "@/components/order/CancelReasonPicker";
 import { ADMIN_CANCEL_REASONS, CANCELLABLE, formatDateTime, formatOrderCode, nextStep } from "@/lib/orders";
@@ -16,9 +17,11 @@ interface OrderDetailModalProps {
   order: Order | null;
   onClose: () => void;
   onChangeStatus: (order: Order, status: OrderStatus, reason?: string) => Promise<void>;
+  /** Bấm "Đã hoàn tiền" cho đơn VNPay đã trả nhưng bị huỷ */
+  onRefunded: (order: Order) => Promise<void>;
 }
 
-export function OrderDetailModal({ order, onClose, onChangeStatus }: OrderDetailModalProps) {
+export function OrderDetailModal({ order, onClose, onChangeStatus, onRefunded }: OrderDetailModalProps) {
   const [busy, setBusy] = useState<OrderStatus | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [reason, setReason] = useState("");
@@ -26,6 +29,16 @@ export function OrderDetailModal({ order, onClose, onChangeStatus }: OrderDetail
   if (!order) return null;
 
   const next = nextStep(order.status, order.fulfillment);
+  // Đơn VNPay chưa trả tiền: chưa cho xác nhận (backend cũng chặn)
+  const waitingPayment = order.paymentMethod === "vnpay" && order.paymentStatus === "pending";
+  const refund = async () => {
+    setBusy("cancelled");
+    try {
+      await onRefunded(order);
+    } finally {
+      setBusy(null);
+    }
+  };
   const canCancel = CANCELLABLE.includes(order.status);
 
   const change = async (status: OrderStatus) => {
@@ -72,7 +85,15 @@ export function OrderDetailModal({ order, onClose, onChangeStatus }: OrderDetail
                 <X className="h-4 w-4" /> Huỷ đơn
               </Button>
             )}
-            {next ? (
+            {order.paymentStatus === "refund_pending" ? (
+              <Button onClick={refund} loading={busy !== null}>
+                <RotateCcw className="h-4 w-4" /> Đã hoàn tiền cho khách
+              </Button>
+            ) : waitingPayment ? (
+              <Button disabled title="Chờ khách thanh toán VNPay">
+                Chờ khách thanh toán…
+              </Button>
+            ) : next ? (
               <Button onClick={() => change(next.status)} loading={busy === next.status}>
                 {next.label} <ArrowRight className="h-4 w-4" />
               </Button>
@@ -101,7 +122,30 @@ export function OrderDetailModal({ order, onClose, onChangeStatus }: OrderDetail
           <span className="text-sm text-coffee-600">Trạng thái hiện tại</span>
           <OrderStatusBadge status={order.status} fulfillment={order.fulfillment} />
         </div>
-        <FulfillmentTag order={order} />
+        <div className="flex flex-wrap gap-1.5">
+          <FulfillmentTag order={order} />
+          <PaymentTag order={order} />
+        </div>
+        {(order.paymentMethod === "vnpay" || order.paymentStatus === "refund_pending") && (
+          <div className="flex items-start gap-2 rounded-2xl bg-coffee-50 px-4 py-3 text-sm text-coffee-800">
+            <CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-coffee-500" />
+            <div>
+              {order.paymentStatus === "pending" && order.paymentDeadline && (
+                <p>Khách chưa thanh toán — đơn tự huỷ lúc {formatDateTime(order.paymentDeadline)} nếu vẫn chưa trả.</p>
+              )}
+              {order.payment && (
+                <p>
+                  Mã giao dịch VNPay <strong className="font-mono">{order.payment.transactionNo || "—"}</strong>
+                  {order.payment.bankCode && <> · ngân hàng {order.payment.bankCode}</>}
+                  {order.paidAt && <> · trả lúc {formatDateTime(order.paidAt)}</>}
+                </p>
+              )}
+              {order.paymentStatus === "refund_pending" && <p className="font-medium text-red-700">Đơn đã bị huỷ sau khi khách trả tiền → cần chuyển trả lại cho khách.</p>}
+              {order.paymentStatus === "refunded" && <p>Đã hoàn tiền cho khách.</p>}
+              {order.paymentStatus === "failed" && <p>Khách không thanh toán, đơn đã tự huỷ.</p>}
+            </div>
+          </div>
+        )}
         <OrderProgress order={order} forAdmin />
 
         <div className="grid gap-3 rounded-2xl bg-coffee-50 p-4 text-sm text-coffee-800 sm:grid-cols-2">

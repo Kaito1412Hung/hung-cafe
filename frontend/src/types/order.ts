@@ -2,6 +2,11 @@ import type { ItemOptions, Topping } from "@/lib/options";
 
 export type OrderStatus = "pending" | "confirmed" | "shipping" | "completed" | "cancelled";
 
+/** Cách trả tiền: tiền mặt khi nhận / VNPay */
+export type PaymentMethod = "cod" | "vnpay";
+/** unpaid: COD chưa thu · pending: chờ trả VNPay · paid · refund_pending: cần hoàn tiền · refunded · failed: quá hạn chưa trả */
+export type PaymentStatus = "unpaid" | "pending" | "paid" | "refund_pending" | "refunded" | "failed";
+
 export interface OrderItem extends Omit<ItemOptions, "toppings"> {
   /** Topping lúc đặt (tên + giá chụp lại) */
   toppings: Topping[];
@@ -34,6 +39,13 @@ export interface Order {
   updatedAt: string;
   /** Giao tận nơi / khách đến quán lấy */
   fulfillment: Fulfillment;
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  /** Hạn chót trả tiền VNPay (quá hạn tự huỷ) */
+  paymentDeadline: string | null;
+  paidAt: string | null;
+  /** Giao dịch VNPay thành công (mã giao dịch, ngân hàng) */
+  payment: { transactionNo: string; bankCode: string } | null;
   /** Giờ hẹn nhận (null = càng sớm càng tốt) */
   scheduledAt: string | null;
   /** Giờ của từng bước (null = chưa tới bước đó) */
@@ -56,6 +68,7 @@ export interface CheckoutInput {
   fulfillment: Fulfillment;
   /** Giờ hẹn (ISO), null = càng sớm càng tốt */
   scheduledAt: string | null;
+  paymentMethod: PaymentMethod;
 }
 
 export interface OrderSummary {

@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Pagination } from "@/components/admin/Pagination";
 import { OrderDetailModal } from "@/components/admin/OrderDetailModal";
 import { FulfillmentTag } from "@/components/order/FulfillmentTag";
+import { PaymentTag } from "@/components/order/PaymentTag";
 import { OrderStatusBadge } from "@/components/order/OrderStatusBadge";
 import { ORDER_STATUS, ORDER_STATUS_LIST, formatDateTime, formatOrderCode, statusLabel } from "@/lib/orders";
 import { cn, formatPrice } from "@/lib/utils";
@@ -111,6 +112,17 @@ function AdminOrders() {
         return { ...prev, orders: prev.orders.map((o) => (o.id === updated.id ? updated : o)), summary: { ...prev.summary, counts, revenue } };
       });
       toast(`${formatOrderCode(order.id)}: ${statusLabel(next, order.fulfillment)}`, next === "cancelled" ? "info" : "success");
+    } catch (err) {
+      toast((err as Error).message, "error");
+    }
+  };
+
+  const handleRefunded = async (order: Order) => {
+    try {
+      const updated = await orderService.markRefunded(order.id);
+      setLinked((prev) => (prev?.id === updated.id ? updated : prev));
+      setResult((prev) => (prev ? { ...prev, orders: prev.orders.map((o) => (o.id === updated.id ? updated : o)) } : prev));
+      toast(`${formatOrderCode(order.id)}: đã ghi nhận hoàn tiền`);
     } catch (err) {
       toast((err as Error).message, "error");
     }
@@ -236,6 +248,7 @@ function AdminOrders() {
                           <td className="px-4 py-4">
                             <OrderStatusBadge status={o.status} fulfillment={o.fulfillment} />
                             <FulfillmentTag order={o} className="mt-1.5" />
+                            <PaymentTag order={o} className="mt-1.5" />
                           </td>
                           <td className="px-4 py-4 text-sm text-coffee-500">{formatDateTime(o.createdAt)}</td>
                           <td className="px-6 py-4 text-right">
@@ -254,7 +267,7 @@ function AdminOrders() {
         )}
       </div>
 
-      <OrderDetailModal order={selected} onClose={closeDetail} onChangeStatus={handleChangeStatus} />
+      <OrderDetailModal order={selected} onClose={closeDetail} onChangeStatus={handleChangeStatus} onRefunded={handleRefunded} />
     </div>
   );
 }

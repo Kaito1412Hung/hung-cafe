@@ -7,7 +7,7 @@ import { ORDER_STEPS, estimateDelivery, formatDateTime, formatScheduled, formatS
 import { cn } from "@/lib/utils";
 import type { Order } from "@/types/order";
 
-type ProgressOrder = Pick<Order, "status" | "createdAt" | "confirmedAt" | "shippingAt" | "completedAt" | "cancelledAt" | "fulfillment" | "scheduledAt">;
+type ProgressOrder = Pick<Order, "status" | "createdAt" | "confirmedAt" | "shippingAt" | "completedAt" | "cancelledAt" | "fulfillment" | "scheduledAt"> & Partial<Pick<Order, "paymentStatus">>;
 
 /** Giờ hiện tại, tự cập nhật mỗi phút (để biết đơn có đang trễ so với dự kiến không) */
 function useNow() {
@@ -35,7 +35,8 @@ export function OrderProgress({ order, forAdmin = false }: { order: ProgressOrde
   }
 
   const currentIndex = ORDER_STEPS.indexOf(order.status);
-  const eta = estimateDelivery(order, settings);
+  // Đơn VNPay chưa trả tiền thì chưa có giờ dự kiến
+  const eta = order.paymentStatus === "pending" ? null : estimateDelivery(order, settings);
   const late = eta !== null && now !== null && now > eta.getTime();
   const pickup = order.fulfillment === "pickup";
   // "Dự kiến giao lúc" / "Hẹn lấy lúc"...

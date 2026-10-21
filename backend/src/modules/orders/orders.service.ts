@@ -3,11 +3,12 @@ import { pool } from "../../db/pool";
 import { calcShippingFee, getOpenStatus, getShopSettings, isWithinOpeningHours } from "../settings/settings.service";
 import type { ShopSettings } from "../settings/settings.schema";
 import { AppError } from "../../utils/AppError";
+import { env, vnpayEnabled } from "../../config/env";
 import { LOW_STOCK_THRESHOLD, cleanup as cleanupNotifications, notifyAdmins, notifyUser } from "../notifications/notifications.service";
 import { evaluate as evaluateCoupon } from "../coupons/coupons.service";
 import { normalizeOptions, parseToppingIds, sizeExtra, type ProductOptionConfig } from "../cart/options";
 import { availableMap } from "../toppings/toppings.service";
-import { STATUS_LABELS, STATUS_TRANSITIONS, type CheckoutInput, type Fulfillment, type Order, type OrderStatus } from "./orders.schema";
+import { STATUS_LABELS, STATUS_TRANSITIONS, type CheckoutInput, type Fulfillment, type Order, type OrderStatus, type PaymentMethod, type PaymentStatus } from "./orders.schema";
 
 // Lấy đơn kèm danh sách món (json_agg gom các dòng order_items thành mảng JSON)
 const ORDER_SELECT = `
@@ -15,6 +16,10 @@ const ORDER_SELECT = `
          o.customer_name AS "customerName", o.phone, o.address, o.note, o.status,
          o.subtotal, o.coupon_code AS "couponCode", o.discount, o.shipping_fee AS "shippingFee", o.total,
          o.cancel_reason AS "cancelReason", o.fulfillment, o.scheduled_at AS "scheduledAt",
+         o.payment_method AS "paymentMethod", o.payment_status AS "paymentStatus",
+         o.payment_deadline AS "paymentDeadline", o.paid_at AS "paidAt",
+         (SELECT json_build_object('transactionNo', p.transaction_no, 'bankCode', p.bank_code)
+            FROM payments p WHERE p.order_id = o.id AND p.status = 'success' ORDER BY p.id DESC LIMIT 1) AS payment,
          o.created_at AS "createdAt", o.updated_at AS "updatedAt",
          o.confirmed_at AS "confirmedAt", o.shipping_at AS "shippingAt",
          o.completed_at AS "completedAt", o.cancelled_at AS "cancelledAt",
@@ -75,6 +80,43 @@ function checkScheduledTime(at: Date, fulfillment: Fulfillment, settings: ShopSe
 }
 const code = (id: number) => `#${String(id).padStart(5, "0")}`;
 
+
+/** Báo "Đơn hàng mới" cho mọi admin (đơn COD: ngay lúc đặt; đơn VNPay: lúc thanh toán xong) */
+export async function notifyNewOrder(client: PoolClient, orderId: number) {
+  const { rows } = await client.query<{
+    customerName: string;
+    total: number;
+    couponCode: string;
+    fulfillment: Fulfillment;
+    scheduledAt: Date | null;
+    paymentMethod: PaymentMethod;
+    qty: number;
+  }>(
+    `SELECT o.customer_name AS "customerName", o.total, o.coupon_code AS "couponCode", o.fulfillment, o.scheduled_at AS "scheduledAt",
+            o.payment_method AS "paymentMethod", COALESCE(SUM(oi.quantity), 0)::int AS qty
+     FROM orders o LEFT JOIN order_items oi ON oi.order_id = o.id WHERE o.id = $1 GROUP BY o.id`,
+    [orderId],
+  );
+  const o = rows[0];
+  if (!o) return;
+  await notifyAdmins(
+    {
+      type: "new_order",
+      title: `Đơn hàng mới ${code(orderId)}`,
+      message: [
+        `${o.customerName} đặt ${o.qty} món · ${money(o.total)}${o.couponCode ? ` (mã ${o.couponCode})` : ""}`,
+        o.paymentMethod === "vnpay" ? "Đã thanh toán VNPay" : "",
+        o.fulfillment === "pickup" ? "Đến quán lấy" : "",
+        o.scheduledAt ? `Hẹn ${vnTime(o.scheduledAt)}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      link: `/admin/orders?order=${orderId}`,
+    },
+    client,
+  );
+}
+
 /* ================= Khách hàng ================= */
 
 export async function checkout(userId: number, input: CheckoutInput): Promise<Order> {
@@ -83,6 +125,11 @@ export async function checkout(userId: number, input: CheckoutInput): Promise<Or
   const openStatus = getOpenStatus(settings);
   if (!openStatus.isOpen) throw new AppError(400, `${openStatus.message}. Bạn vui lòng đặt lại sau nhé!`);
   const scheduledAt = input.scheduledAt ? new Date(input.scheduledAt) : null;
+  if (input.paymentMethod === "vnpay" && !vnpayEnabled) {
+    throw new AppError(400, "Quán chưa bật thanh toán VNPay, bạn chọn thanh toán khi nhận hàng nhé", { paymentMethod: "Chưa bật VNPay" });
+  }
+  // VNPay: đơn giữ món + mã giảm giá trong PAYMENT_TIMEOUT_MINUTES phút, quá hạn chưa trả thì tự huỷ (expireUnpaidOrders)
+  const isVnpay = input.paymentMethod === "vnpay";
   if (scheduledAt) checkScheduledTime(scheduledAt, input.fulfillment, settings);
 
   const orderId = await withTransaction(async (client) => {
@@ -153,9 +200,27 @@ export async function checkout(userId: number, input: CheckoutInput): Promise<Or
     const total = subtotal - discount + shippingFee;
 
     const { rows } = await client.query<{ id: number }>(
-      `INSERT INTO orders (user_id, customer_name, phone, address, note, subtotal, coupon_code, discount, shipping_fee, total, fulfillment, scheduled_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
-      [userId, input.customerName, input.phone, input.address, input.note, subtotal, couponCode, discount, shippingFee, total, input.fulfillment, scheduledAt],
+      `INSERT INTO orders (user_id, customer_name, phone, address, note, subtotal, coupon_code, discount, shipping_fee, total, fulfillment, scheduled_at,
+                           payment_method, payment_status, payment_deadline)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+               CASE WHEN $15::int IS NULL THEN NULL ELSE NOW() + make_interval(mins => $15::int) END) RETURNING id`,
+      [
+        userId,
+        input.customerName,
+        input.phone,
+        input.address,
+        input.note,
+        subtotal,
+        couponCode,
+        discount,
+        shippingFee,
+        total,
+        input.fulfillment,
+        scheduledAt,
+        input.paymentMethod,
+        isVnpay ? "pending" : "unpaid",
+        isVnpay ? env.PAYMENT_TIMEOUT_MINUTES : null, // hạn chót trả tiền (chỉ đơn VNPay)
+      ],
     );
     const newOrderId = rows[0].id;
 
@@ -202,22 +267,8 @@ export async function checkout(userId: number, input: CheckoutInput): Promise<Or
 
     await client.query("DELETE FROM cart_items WHERE user_id = $1", [userId]);
 
-    const totalQty = lines.reduce((sum, i) => sum + i.quantity, 0);
-    await notifyAdmins(
-      {
-        type: "new_order",
-        title: `Đơn hàng mới ${code(newOrderId)}`,
-        message: [
-          `${input.customerName} đặt ${totalQty} món · ${money(total)}${couponCode ? ` (mã ${couponCode})` : ""}`,
-          input.fulfillment === "pickup" ? "Đến quán lấy" : "",
-          scheduledAt ? `Hẹn ${vnTime(scheduledAt)}` : "",
-        ]
-          .filter(Boolean)
-          .join(" · "),
-        link: `/admin/orders?order=${newOrderId}`,
-      },
-      client,
-    );
+    // Đơn VNPay: chờ khách trả tiền xong mới báo admin (payments.service gọi notifyNewOrder)
+    if (!isVnpay) await notifyNewOrder(client, newOrderId);
     return newOrderId;
   });
 
@@ -322,11 +373,24 @@ const STEP_COLUMNS: Partial<Record<OrderStatus, string>> = {
 export async function changeStatus(
   id: number,
   next: OrderStatus,
-  { reason = "", notifyCustomer = true }: { reason?: string; notifyCustomer?: boolean } = {},
+  {
+    reason = "",
+    notifyCustomer = true,
+    onlyIfPaymentPending = false,
+  }: { reason?: string; notifyCustomer?: boolean; /** Tự huỷ đơn quá hạn: chỉ huỷ nếu khách VẪN chưa trả tiền (tránh huỷ nhầm đơn vừa trả) */ onlyIfPaymentPending?: boolean } = {},
 ): Promise<Order> {
   await withTransaction(async (client) => {
-    const { rows } = await client.query<{ status: OrderStatus; userId: number | null; couponCode: string; fulfillment: Fulfillment }>(
-      `SELECT status, user_id AS "userId", coupon_code AS "couponCode", fulfillment FROM orders WHERE id = $1 FOR UPDATE`,
+    const { rows } = await client.query<{
+      status: OrderStatus;
+      userId: number | null;
+      couponCode: string;
+      fulfillment: Fulfillment;
+      paymentMethod: PaymentMethod;
+      paymentStatus: PaymentStatus;
+    }>(
+      `SELECT status, user_id AS "userId", coupon_code AS "couponCode", fulfillment,
+              payment_method AS "paymentMethod", payment_status AS "paymentStatus"
+       FROM orders WHERE id = $1 FOR UPDATE`,
       [id],
     );
     if (!rows[0]) throw new AppError(404, "Không tìm thấy đơn hàng");
@@ -335,6 +399,11 @@ export async function changeStatus(
     if (!STATUS_TRANSITIONS[current].includes(next)) {
       throw new AppError(400, `Không thể chuyển đơn từ "${STATUS_LABELS[current]}" sang "${STATUS_LABELS[next]}"`);
     }
+    if (onlyIfPaymentPending && rows[0].paymentStatus !== "pending") throw new AppError(409, "Đơn đã được thanh toán");
+    // Đơn VNPay chưa trả tiền thì quán chưa làm
+    if (next === "confirmed" && rows[0].paymentMethod === "vnpay" && rows[0].paymentStatus !== "paid") {
+      throw new AppError(400, "Đơn này chưa được thanh toán VNPay, chưa xác nhận được");
+    }
 
     // Ghi lại giờ của bước mới (tên cột lấy từ danh sách cố định STEP_COLUMNS, không lấy từ người dùng)
     const stepColumn = STEP_COLUMNS[next];
@@ -342,6 +411,17 @@ export async function changeStatus(
       `UPDATE orders SET status = $1, cancel_reason = $2, updated_at = NOW()${stepColumn ? `, ${stepColumn} = NOW()` : ""} WHERE id = $3`,
       [next, next === "cancelled" ? reason : "", id],
     );
+
+    // Trạng thái thanh toán đi theo: huỷ đơn đã trả tiền → cần hoàn tiền; huỷ đơn chờ trả → thất bại; COD giao xong → đã thu tiền
+    const payment = rows[0].paymentStatus;
+    const nextPayment: PaymentStatus | null =
+      next === "cancelled" ? (payment === "paid" ? "refund_pending" : payment === "pending" ? "failed" : null) : next === "completed" && payment === "unpaid" ? "paid" : null;
+    if (nextPayment) {
+      await client.query(
+        `UPDATE orders SET payment_status = $1::varchar, paid_at = CASE WHEN $1::varchar = 'paid' THEN NOW() ELSE paid_at END WHERE id = $2`,
+        [nextPayment, id],
+      );
+    }
 
     if (next === "cancelled") {
       await client.query(
@@ -379,6 +459,7 @@ export async function cancelByCustomer(userId: number, id: number, reason = ""):
   if (order.userId !== userId) throw new AppError(404, "Không tìm thấy đơn hàng");
   if (order.status !== "pending") throw new AppError(400, "Đơn đã được xác nhận, vui lòng liên hệ quán để huỷ");
   const cancelled = await changeStatus(id, "cancelled", { reason: reason || "Khách tự huỷ đơn", notifyCustomer: false });
+  if (order.paymentMethod === "vnpay" && order.paymentStatus === "pending") return cancelled;
   await notifyAdmins({
     type: "order_cancelled",
     title: `Khách đã huỷ đơn ${code(id)}`,
@@ -441,4 +522,33 @@ export async function getSummary() {
     if (r.status === "completed") revenue = Number(r.revenue);
   }
   return { counts, total: Object.values(counts).reduce((a, b) => a + b, 0), revenue };
+}
+
+/* ================= Thanh toán ================= */
+
+/** Admin đã chuyển trả tiền cho khách (đơn VNPay đã trả nhưng bị huỷ) */
+export async function markRefunded(id: number): Promise<Order> {
+  const { rowCount } = await pool.query(
+    `UPDATE orders SET payment_status = 'refunded', updated_at = NOW() WHERE id = $1 AND payment_status = 'refund_pending'`,
+    [id],
+  );
+  if (!rowCount) throw new AppError(400, "Đơn này không ở trạng thái cần hoàn tiền");
+  return findById(id);
+}
+
+/** Huỷ các đơn VNPay quá hạn mà chưa thanh toán (trả kho + lượt mã giảm giá). Trả về số đơn đã huỷ */
+export async function expireUnpaidOrders(): Promise<number> {
+  const { rows } = await pool.query<{ id: number }>(
+    `SELECT id FROM orders WHERE payment_status = 'pending' AND status = 'pending' AND payment_deadline < NOW() ORDER BY id`,
+  );
+  let count = 0;
+  for (const { id } of rows) {
+    try {
+      await changeStatus(id, "cancelled", { reason: `Quá ${env.PAYMENT_TIMEOUT_MINUTES} phút chưa thanh toán VNPay`, onlyIfPaymentPending: true });
+      count++;
+    } catch {
+      // Đơn vừa được trả tiền / đổi trạng thái cùng lúc → bỏ qua, lần sau xét lại
+    }
+  }
+  return count;
 }

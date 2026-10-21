@@ -11,6 +11,15 @@ export const reportsRouter = Router();
 reportsRouter.use(requireAuth, requireRole("admin"));
 
 const TZ = "Asia/Ho_Chi_Minh";
+/** Trạng thái thanh toán ghi trong Excel */
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  unpaid: "Chưa thu",
+  pending: "Chờ thanh toán",
+  paid: "Đã thanh toán",
+  refund_pending: "Cần hoàn tiền",
+  refunded: "Đã hoàn tiền",
+  failed: "Không thanh toán",
+};
 const MONEY = '#,##0" đ"';
 const BROWN = "FF4A2C1D";
 
@@ -86,11 +95,14 @@ reportsRouter.get("/revenue", async (req, res) => {
       cancelReason: string;
       fulfillment: string;
       scheduledAt: string | null;
+      paymentMethod: string;
+      paymentStatus: string;
       items: { name: string; quantity: number; size: string; sugar: string; temp: string; ice: string; note: string; toppings: { name: string }[] }[];
     }>(
       `SELECT o.id, to_char(o.created_at AT TIME ZONE '${TZ}', 'DD/MM/YYYY HH24:MI') AS "createdAt",
               o.customer_name AS "customerName", o.phone, o.status, o.subtotal, o.coupon_code AS "couponCode",
               o.discount, o.shipping_fee AS "shippingFee", o.total, o.cancel_reason AS "cancelReason",
+              o.payment_method AS "paymentMethod", o.payment_status AS "paymentStatus",
               o.fulfillment, to_char(o.scheduled_at AT TIME ZONE '${TZ}', 'DD/MM/YYYY HH24:MI') AS "scheduledAt",
               json_agg(json_build_object('name', oi.product_name, 'quantity', oi.quantity,
                 'size', oi.size, 'sugar', oi.sugar, 'temp', oi.temp, 'ice', oi.ice, 'note', oi.note, 'toppings', oi.toppings) ORDER BY oi.id) AS items
@@ -178,6 +190,7 @@ reportsRouter.get("/revenue", async (req, res) => {
     { header: "SĐT", key: "phone", width: 13 },
     { header: "Hình thức", key: "fulfillment", width: 14 },
     { header: "Hẹn giờ", key: "scheduledAt", width: 17 },
+    { header: "Thanh toán", key: "payment", width: 24 },
     { header: "Món", key: "items", width: 48 },
     { header: "Trạng thái", key: "status", width: 14 },
     { header: "Tạm tính", key: "subtotal", width: 13, style: { numFmt: MONEY } },
@@ -195,6 +208,7 @@ reportsRouter.get("/revenue", async (req, res) => {
       status: STATUS_LABELS[o.status],
       fulfillment: o.fulfillment === "pickup" ? "Đến quán lấy" : "Giao tận nơi",
       scheduledAt: o.scheduledAt ?? "",
+      payment: `${o.paymentMethod === "vnpay" ? "VNPay" : "Tiền mặt"} · ${PAYMENT_STATUS_LABELS[o.paymentStatus] ?? o.paymentStatus}`,
       items: o.items
         .map((i) => {
           const opts = describeOptions(i);

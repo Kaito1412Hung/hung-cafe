@@ -1,5 +1,5 @@
 import { vnDate, vnParts } from "@/lib/utils";
-import type { Fulfillment, Order, OrderStatus } from "@/types/order";
+import type { Fulfillment, Order, OrderStatus, PaymentMethod, PaymentStatus } from "@/types/order";
 import type { ShopSettings } from "@/types/settings";
 
 export const ORDER_STATUS: Record<OrderStatus, { label: string; tone: string; dot: string }> = {
@@ -11,6 +11,19 @@ export const ORDER_STATUS: Record<OrderStatus, { label: string; tone: string; do
 };
 
 export const ORDER_STATUS_LIST = Object.keys(ORDER_STATUS) as OrderStatus[];
+
+/** Cách trả tiền */
+export const PAYMENT_METHOD: Record<PaymentMethod, string> = { cod: "Tiền mặt khi nhận", vnpay: "VNPay" };
+
+/** Trạng thái thanh toán (nhãn + màu) — khớp payment_status ở backend */
+export const PAYMENT_STATUS: Record<PaymentStatus, { label: string; tone: string }> = {
+  unpaid: { label: "Chưa thu tiền", tone: "bg-coffee-50 text-coffee-700 ring-coffee-200" },
+  pending: { label: "Chờ thanh toán", tone: "bg-amber-50 text-amber-800 ring-amber-600/20" },
+  paid: { label: "Đã thanh toán", tone: "bg-emerald-50 text-emerald-700 ring-emerald-600/20" },
+  refund_pending: { label: "Cần hoàn tiền", tone: "bg-red-50 text-red-700 ring-red-600/15" },
+  refunded: { label: "Đã hoàn tiền", tone: "bg-sky-50 text-sky-700 ring-sky-600/20" },
+  failed: { label: "Không thanh toán", tone: "bg-coffee-50 text-coffee-500 ring-coffee-200" },
+};
 
 /** Hình thức nhận */
 export const FULFILLMENT: Record<Fulfillment, { label: string; hint: string }> = {

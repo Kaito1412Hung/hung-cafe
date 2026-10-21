@@ -13,6 +13,15 @@ const envSchema = z.object({
     .transform((v) => v === "true"),
   JWT_SECRET: z.string().min(32, "JWT_SECRET cần ít nhất 32 ký tự"),
   JWT_EXPIRES_IN: z.string().default("7d"),
+
+  // Thanh toán VNPay (để trống → web chỉ có thanh toán khi nhận hàng)
+  VNP_TMN_CODE: z.string().default(""),
+  VNP_HASH_SECRET: z.string().default(""),
+  VNP_URL: z.string().default("https://sandbox.vnpayment.vn/paymentv2/vpcpay.html"),
+  /** Trang VNPay đưa khách quay về sau khi trả tiền (trang của frontend) */
+  VNP_RETURN_URL: z.string().default(""),
+  /** Quá bao nhiêu phút chưa thanh toán thì tự huỷ đơn */
+  PAYMENT_TIMEOUT_MINUTES: z.coerce.number().int().min(5).max(60).default(15),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -27,3 +36,5 @@ if (!parsed.success) {
 
 export const env = parsed.data;
 export const isProduction = env.NODE_ENV === "production";
+/** Đã điền mã VNPay trong .env chưa */
+export const vnpayEnabled = Boolean(env.VNP_TMN_CODE && env.VNP_HASH_SECRET);

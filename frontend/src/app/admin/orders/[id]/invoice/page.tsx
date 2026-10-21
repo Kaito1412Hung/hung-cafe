@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Loader2, Printer } from "lucide-react";
 import { Button, buttonClass } from "@/components/ui/Button";
 import { useShopSettings } from "@/context/ShopSettingsContext";
-import { FULFILLMENT, formatDateTime, formatOrderCode, statusLabel } from "@/lib/orders";
+import { FULFILLMENT, PAYMENT_METHOD, PAYMENT_STATUS, formatDateTime, formatOrderCode, statusLabel } from "@/lib/orders";
 import { formatPrice } from "@/lib/utils";
 import { describeOptions, describeToppings } from "@/lib/options";
 import { orderService } from "@/services/orderService";
@@ -93,6 +93,11 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
           <span>{order.phone}</span>
           <span className="text-coffee-500">Hình thức</span>
           <span>{FULFILLMENT[order.fulfillment].label}</span>
+          <span className="text-coffee-500">Thanh toán</span>
+          <span>
+            {PAYMENT_METHOD[order.paymentMethod]} · {PAYMENT_STATUS[order.paymentStatus].label}
+            {order.payment?.transactionNo && <> · mã GD {order.payment.transactionNo}</>}
+          </span>
           {order.fulfillment === "delivery" && (
             <>
               <span className="text-coffee-500">Giao đến</span>
