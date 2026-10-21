@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Clock, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import { formatHour, useShopSettings } from "@/context/ShopSettingsContext";
-import { cn } from "@/lib/utils";
+import { cn, vnParts } from "@/lib/utils";
 import { Logo } from "./Logo";
 import { SectionLink } from "./SectionLink";
 
@@ -86,7 +86,7 @@ export function Footer() {
       <div className="border-t border-coffee-900">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-6 text-xs text-coffee-400 sm:px-6 md:flex-row lg:px-8">
           <p>
-            © {new Date().getFullYear()} {settings.name}. Dự án học tập Next.js + TypeScript.
+            © {vnParts(new Date()).year} {settings.name}. Dự án học tập Next.js + TypeScript.
           </p>
           <nav aria-label="Chính sách" className="flex flex-wrap justify-center gap-x-5 gap-y-2">
             <Link href="/chinh-sach/giao-hang" className="hover:text-cream">Chính sách giao hàng</Link>

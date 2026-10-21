@@ -53,6 +53,12 @@ schema      zod: kiểm tra dữ liệu gửi lên (sai → 400 kèm lỗi từn
 - Mốc thời gian tính trong `admin/period.ts` (giờ Việt Nam). Năm đang diễn ra so với **cùng kỳ năm trước** (1/1 → hôm nay của năm trước) cho công bằng.
 - Báo cáo Excel nhận cùng tham số: cả năm thì sheet 2 là "Theo tháng".
 
+## Múi giờ
+
+- Database lưu giờ kiểu `TIMESTAMPTZ` (thời điểm tuyệt đối), API trả giờ dạng ISO có chữ `Z` (UTC).
+- Chỗ nào cần "ngày hôm nay", giờ mở cửa, gom theo ngày / tháng → tính theo **`Asia/Ho_Chi_Minh`** (backend: `settings.service.ts`, `admin/period.ts`, SQL `AT TIME ZONE`).
+- Frontend hiển thị mọi ngày giờ theo giờ Việt Nam (`vnParts`, `formatDateTime` …), nên người xem ở nước ngoài hay server deploy chạy giờ UTC đều thấy đúng giờ của quán.
+
 ## Thông báo
 
 - Đơn mới, khách huỷ đơn, món sắp hết, khách mới đăng ký, tin nhắn liên hệ → thông báo cho **mọi admin**.

@@ -214,7 +214,7 @@ reportsRouter.get("/revenue", async (req, res) => {
 
   const fileName =
     period.kind === "days"
-      ? `bao-cao-doanh-thu-${period.days}-ngay-${new Date().toISOString().slice(0, 10)}.xlsx`
+      ? `bao-cao-doanh-thu-${period.days}-ngay-${new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date())}.xlsx` // ngày theo giờ VN
       : `bao-cao-doanh-thu-nam-${period.year}.xlsx`;
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);

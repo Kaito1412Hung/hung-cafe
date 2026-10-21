@@ -10,17 +10,20 @@ import { Switch } from "@/components/ui/Switch";
 import { useToast } from "@/components/ui/Toast";
 import { ApiError } from "@/lib/api";
 import { formatDateTime } from "@/lib/orders";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, vnParts } from "@/lib/utils";
 import { couponService } from "@/services/couponService";
 import type { Coupon, CouponInput } from "@/types/coupon";
 
-/** "2026-10-20T08:00:00.000Z" ↔ giá trị ô <input type="datetime-local"> (giờ máy người dùng) */
+/**
+ * "2026-10-20T01:00:00.000Z" ↔ giá trị ô <input type="datetime-local"> "2026-10-20T08:00".
+ * Ô nhập luôn hiểu là giờ Việt Nam (UTC+7), admin ở nước nào nhập cũng ra đúng giờ của quán.
+ */
 const toLocalInput = (iso: string | null) => {
   if (!iso) return "";
-  const d = new Date(iso);
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  const { year, month, day, hour, minute } = vnParts(new Date(iso));
+  return `${year}-${month}-${day}T${hour}:${minute}`;
 };
-const fromLocalInput = (v: string) => (v ? new Date(v).toISOString() : null);
+const fromLocalInput = (v: string) => (v ? new Date(`${v}:00+07:00`).toISOString() : null);
 
 /** Mô tả mức giảm: "Giảm 10% (tối đa 30.000đ)" */
 function describeDiscount(c: Pick<Coupon, "type" | "value" | "maxDiscount">) {

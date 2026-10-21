@@ -1,3 +1,4 @@
+import { vnDate, vnParts } from "@/lib/utils";
 import type { Fulfillment, Order, OrderStatus } from "@/types/order";
 import type { ShopSettings } from "@/types/settings";
 
@@ -54,17 +55,19 @@ export function formatOrderCode(id: number) {
   return `#${String(id).padStart(5, "0")}`;
 }
 
+/** "09:05 21/10/2026" (giờ Việt Nam) */
 export function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" });
+  const { year, month, day, hour, minute } = vnParts(new Date(iso));
+  return `${hour}:${minute} ${day}/${month}/${year}`;
 }
 
 /** "14:05" — kèm ngày "14:05 · 19/10" khi khác ngày với `base` (VD đơn đặt tối, sáng hôm sau mới giao) */
 export function formatStepTime(iso: string, base?: string) {
   const d = new Date(iso);
-  const time = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
-  if (!base || new Date(base).toDateString() === d.toDateString()) return time;
-  // Tự ghép ngày/tháng: trình duyệt có nơi in "22-10" thay vì "22/10"
-  return `${time} · ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const { month, day, hour, minute } = vnParts(d);
+  const time = `${hour}:${minute}`;
+  if (!base || vnDate(new Date(base)) === vnDate(d)) return time;
+  return `${time} · ${day}/${month}`;
 }
 
 /** Giờ của từng bước trên thanh tiến trình */
@@ -99,13 +102,12 @@ export function estimateDelivery(
 
 /* ================= Hẹn giờ nhận ================= */
 
-/** Ngày "YYYY-MM-DD" theo giờ Việt Nam */
-const vnDate = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(d);
 
 /** Giờ hẹn: "15:00 hôm nay", "15:00 ngày mai", ngày khác thì "15:00 · 22/10" */
 export function formatScheduled(iso: string, now = new Date()) {
   const d = new Date(iso);
-  const time = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Ho_Chi_Minh" });
+  const { hour, minute } = vnParts(d);
+  const time = `${hour}:${minute}`;
   const day = vnDate(d);
   if (day === vnDate(now)) return `${time} hôm nay`;
   if (day === vnDate(new Date(now.getTime() + 86_400_000))) return `${time} ngày mai`;

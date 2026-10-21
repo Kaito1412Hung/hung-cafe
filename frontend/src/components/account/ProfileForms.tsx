@@ -9,7 +9,7 @@ import { SettingsCard } from "@/components/admin/SettingsCard";
 import { useAuth } from "@/context/AuthContext";
 import { ApiError } from "@/lib/api";
 import { GENDER_LABELS } from "@/lib/user";
-import { cn } from "@/lib/utils";
+import { cn, vnDate } from "@/lib/utils";
 import { profileService } from "@/services/profileService";
 import type { Gender, ProfileInput, User } from "@/types/user";
 import { AvatarUploader } from "./AvatarUploader";
@@ -67,7 +67,7 @@ export function PersonalInfoForm() {
     }
   };
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = vnDate();
 
   return (
     <form onSubmit={handleSubmit} noValidate>

@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Info, Loader2, TicketPercent, TicketSlash } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { cn, formatPrice } from "@/lib/utils";
+import { cn, formatDate, formatPrice } from "@/lib/utils";
 import { couponService } from "@/services/couponService";
 import type { AppliedCoupon, AvailableCoupon } from "@/types/coupon";
 
@@ -47,7 +47,7 @@ function Ticket({ coupon, selected, best, onSelect }: { coupon: AvailableCoupon;
           <p className="mt-1.5 text-xs text-coffee-500">
             Đơn này được giảm <strong className="text-emerald-700">{formatPrice(coupon.discount)}</strong>
             {coupon.usageLeft !== null && ` · còn ${coupon.usageLeft} lượt`}
-            {coupon.expiresAt && ` · HSD ${new Date(coupon.expiresAt).toLocaleDateString("vi-VN")}`}
+            {coupon.expiresAt && ` · HSD ${formatDate(coupon.expiresAt)}`}
           </p>
         )}
       </div>
