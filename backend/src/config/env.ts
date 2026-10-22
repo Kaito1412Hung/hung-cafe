@@ -13,6 +13,17 @@ const envSchema = z.object({
     .transform((v) => v === "true"),
   JWT_SECRET: z.string().min(32, "JWT_SECRET cần ít nhất 32 ký tự"),
   JWT_EXPIRES_IN: z.string().default("7d"),
+  /**
+   * Tin bao nhiêu "trạm trung gian" (proxy) đứng trước backend khi đọc IP thật của khách từ header X-Forwarded-For.
+   * - Máy dev: "loopback" (chỉ tin Next.js chạy cùng máy)
+   * - Deploy Vercel → Render: số trạm, VD "2" (Vercel + bộ cân bằng tải của Render)
+   * Dùng cho chống spam / dò mật khẩu: sai thì mọi khách bị tính chung 1 IP.
+   */
+  TRUST_PROXY: z
+    .string()
+    .trim()
+    .default("loopback")
+    .transform((v): boolean | number | string => (/^\d+$/.test(v) ? Number(v) : v === "true" ? true : v === "false" ? false : v)),
 
   // Thanh toán VNPay (để trống → web chỉ có thanh toán khi nhận hàng)
   VNP_TMN_CODE: z.string().default(""),

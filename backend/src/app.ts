@@ -26,8 +26,9 @@ import { errorHandler, notFound } from "./middlewares/errorHandler";
 
 export const app = express();
 
-// Request đi qua Next.js (cùng máy) → tin header X-Forwarded-For để lấy IP thật của người dùng (dùng cho chống spam)
-app.set("trust proxy", "loopback");
+// Request đi qua proxy (máy dev: Next.js cùng máy; deploy: Vercel + Render) → tin header X-Forwarded-For
+// đúng số trạm để lấy IP thật của người dùng (dùng cho chống spam). Cấu hình bằng TRUST_PROXY trong .env
+app.set("trust proxy", env.TRUST_PROXY);
 // helmet: thêm các header bảo mật cơ bản (chống nhúng iframe, đoán kiểu file...). Cho phép web khác hiển thị ảnh đã upload.
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 
@@ -41,9 +42,10 @@ app.use("/api/uploads", express.static(UPLOAD_DIR, { maxAge: "7d", immutable: tr
 
 app.use(express.json({ limit: "300kb" })); // đủ cho ảnh đại diện đã thu nhỏ
 
-app.get("/api/health", async (_req, res) => {
+app.get("/api/health", async (req, res) => {
   await pool.query("SELECT 1");
-  res.json({ status: "ok", database: "connected" });
+  // yourIp: IP của chính người đang gọi, như backend nhìn thấy → kiểm tra TRUST_PROXY sau khi deploy
+  res.json({ status: "ok", database: "connected", yourIp: req.ip ?? null });
 });
 
 app.use("/api/auth", authRouter);

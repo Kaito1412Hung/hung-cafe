@@ -148,7 +148,8 @@ function op(path: string, input: OperationInput) {
 
 const paths = {
   "/api/health": {
-    get: op("/api/health", { tag: "Hệ thống", summary: "Kiểm tra backend + database còn chạy", errors: { 500: "Không kết nối được database" } }),
+    get: op("/api/health", { tag: "Hệ thống", summary: "Kiểm tra backend + database còn chạy",
+      description: "Trả thêm `yourIp`: IP của chính bạn như backend nhìn thấy (dùng để kiểm tra cấu hình TRUST_PROXY sau khi deploy).", errors: { 500: "Không kết nối được database" } }),
   },
 
   /* ----- Tài khoản ----- */

@@ -107,6 +107,7 @@ Lỗi luôn trả về dạng `{ "message": "...", "errors": { "field": "..." } 
 - **Chống dò mật khẩu:** sai 5 lần / 15 phút với 1 email → khoá đăng nhập email đó 15 phút; 1 IP sai quá 20 lần cũng bị khoá (`middlewares/rateLimit.ts`).
 - **Giới hạn tần suất (rate limit) theo IP:** đăng ký 5 lần/giờ, quên mật khẩu 5 lần/15 phút, liên hệ / nhận tin 10 lần/10 phút, thử mã giảm giá 20 lần/5 phút.
 - **helmet:** thêm các header bảo mật (chống nhúng iframe, chống đoán kiểu file, ẩn `X-Powered-By`).
+- **IP thật của khách:** backend đứng sau proxy (máy dev: Next.js; deploy: Vercel + Render) → biến `TRUST_PROXY` cho biết tin mấy trạm trong header `X-Forwarded-For`. Sai thì mọi khách bị tính chung 1 IP. Kiểm tra: mở `/api/health` xem `yourIp`.
 - Bộ đếm lưu trong bộ nhớ server (khởi động lại là reset). Chạy nhiều server thì nên chuyển sang Redis.
 
 ## Cấu trúc
