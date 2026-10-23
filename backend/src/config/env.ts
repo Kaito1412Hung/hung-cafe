@@ -24,6 +24,11 @@ const envSchema = z.object({
     .trim()
     .default("loopback")
     .transform((v): boolean | number | string => (/^\d+$/.test(v) ? Number(v) : v === "true" ? true : v === "false" ? false : v)),
+  /** Bật tạm khi cần đo TRUST_PROXY: /api/health trả thêm chuỗi proxy (X-Forwarded-For…). Đo xong thì tắt */
+  DEBUG_IP: z
+    .string()
+    .default("false")
+    .transform((v) => v === "true"),
 
   // Thanh toán VNPay (để trống → web chỉ có thanh toán khi nhận hàng)
   VNP_TMN_CODE: z.string().default(""),

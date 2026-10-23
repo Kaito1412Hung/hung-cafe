@@ -45,7 +45,23 @@ app.use(express.json({ limit: "300kb" })); // đủ cho ảnh đại diện đã
 app.get("/api/health", async (req, res) => {
   await pool.query("SELECT 1");
   // yourIp: IP của chính người đang gọi, như backend nhìn thấy → kiểm tra TRUST_PROXY sau khi deploy
-  res.json({ status: "ok", database: "connected", yourIp: req.ip ?? null });
+  res.json({
+    status: "ok",
+    database: "connected",
+    yourIp: req.ip ?? null,
+    // DEBUG_IP=true: xem request đi qua những trạm nào để chỉnh TRUST_PROXY (chỉ là IP của chính người gọi + các proxy)
+    ...(env.DEBUG_IP && {
+      debug: {
+        trustProxy: env.TRUST_PROXY,
+        ips: req.ips,
+        xForwardedFor: req.headers["x-forwarded-for"] ?? null,
+        xRealIp: req.headers["x-real-ip"] ?? null,
+        cfConnectingIp: req.headers["cf-connecting-ip"] ?? null,
+        xVercelForwardedFor: req.headers["x-vercel-forwarded-for"] ?? null,
+        socket: req.socket.remoteAddress ?? null,
+      },
+    }),
+  });
 });
 
 app.use("/api/auth", authRouter);
