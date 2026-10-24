@@ -89,6 +89,19 @@ Vì sao cần Cloudinary: máy chủ deploy (VD Render bản miễn phí) **xoá
 - Khách: `GET /api/orders/my?limit=10&offset=0` → `{ data, total }`, nút "Xem thêm đơn cũ hơn" tăng `offset`.
 - Admin: `GET /api/orders?page=1&pageSize=10&status=&search=` → `{ data, total, page, pageSize, summary }`.
 
+## Chạy thật (deploy)
+
+```
+Trình duyệt → Vercel (Next.js, chuyển tiếp /api/*) → Cloudflare → bộ chia tải Render → Express (Render) → Neon (PostgreSQL)
+                                                                                         └→ Cloudinary (ảnh)
+```
+
+- **Vercel** build thư mục `frontend`, biến `BACKEND_URL` (link Render) + `SITE_URL` (link web thật, cho sitemap / ảnh chia sẻ).
+- **Render** build thư mục `backend` (`npm install --include=dev && npm run build`, chạy `npm start`), biến môi trường thay cho `.env`: `DATABASE_URL` (Neon, đường dẫn **trực tiếp** — bỏ `-pooler`), `DATABASE_SSL=true`, `NODE_ENV=production`, `JWT_SECRET`, `CLIENT_URL`, `TRUST_PROXY=4`, `DEMO_EMAILS`, mã Cloudinary.
+- **IP thật của khách:** đi qua 4 trạm → `TRUST_PROXY=4` (đo bằng `DEBUG_IP=true` ở `/api/health`). Gọi qua Vercel thì IP giả bị xoá; gọi thẳng link Render vẫn có thể giả IP.
+- **Tài khoản demo** (`DEMO_EMAILS`): mật khẩu công khai trong README, bị khoá đổi mật khẩu / hồ sơ / xoá; gõ sai mật khẩu không khoá theo email.
+- Push lên GitHub → Vercel + Render tự build lại. Thêm cột / bảng mới → chạy `db:setup` vào Neon (schema viết `IF NOT EXISTS`, không mất dữ liệu).
+
 ## Dữ liệu mẫu
 
 - `npm run db:setup` = `schema.ts` (tạo / nâng cấp bảng) + `seed.ts` (45 món, 7 danh mục, 6 topping, 2 tài khoản mẫu).

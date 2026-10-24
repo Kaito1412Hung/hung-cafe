@@ -181,7 +181,7 @@ const paths = {
     post: op("/api/auth/logout", { tag: "Tài khoản", summary: "Đăng xuất (xoá cookie)" }),
   },
   "/api/auth/logout-all": {
-    post: op("/api/auth/logout-all", { tag: "Tài khoản", summary: "Đăng xuất mọi thiết bị", description: "Tăng `token_version` → mọi JWT cũ hết hiệu lực.", access: "user" }),
+    post: op("/api/auth/logout-all", { tag: "Tài khoản", summary: "Đăng xuất mọi thiết bị", description: "Tăng `token_version` → mọi JWT cũ hết hiệu lực.", access: "user", errors: { 403: "Tài khoản demo dùng chung không được làm thao tác này" }, }),
   },
   "/api/auth/forgot-password": {
     post: op("/api/auth/forgot-password", {
@@ -194,14 +194,14 @@ const paths = {
   },
   "/api/auth/me": {
     get: op("/api/auth/me", { tag: "Tài khoản", summary: "Thông tin tài khoản đang đăng nhập", description: "Chưa đăng nhập vẫn trả 200 với `{ user: null }`.", access: "optional" }),
-    patch: op("/api/auth/me", { tag: "Tài khoản", summary: "Sửa hồ sơ", description: "Chỉ gửi những ô muốn đổi.", access: "user", body: auth.updateProfileSchema }),
-    delete: op("/api/auth/me", { tag: "Tài khoản", summary: "Xoá tài khoản của mình", description: "Phải nhập lại mật khẩu để xác nhận.", access: "user", body: auth.deleteAccountSchema, errors: { 400: "Sai mật khẩu / tài khoản admin không tự xoá được" } }),
+    patch: op("/api/auth/me", { tag: "Tài khoản", summary: "Sửa hồ sơ", description: "Chỉ gửi những ô muốn đổi.", access: "user", body: auth.updateProfileSchema, errors: { 403: "Tài khoản demo dùng chung không được làm thao tác này" }, }),
+    delete: op("/api/auth/me", { tag: "Tài khoản", summary: "Xoá tài khoản của mình", description: "Phải nhập lại mật khẩu để xác nhận.", access: "user", body: auth.deleteAccountSchema, errors: { 400: "Sai mật khẩu / tài khoản admin không tự xoá được", 403: "Tài khoản demo dùng chung không được xoá" } }),
   },
   "/api/auth/me/avatar": {
-    put: op("/api/auth/me/avatar", { tag: "Tài khoản", summary: "Đổi ảnh đại diện", description: "Ảnh dạng data URL (frontend đã thu nhỏ trước khi gửi).", access: "user", body: auth.avatarSchema }),
+    put: op("/api/auth/me/avatar", { tag: "Tài khoản", summary: "Đổi ảnh đại diện", description: "Ảnh dạng data URL (frontend đã thu nhỏ trước khi gửi).", access: "user", body: auth.avatarSchema, errors: { 403: "Tài khoản demo dùng chung không được làm thao tác này" }, }),
   },
   "/api/auth/password": {
-    patch: op("/api/auth/password", { tag: "Tài khoản", summary: "Đổi mật khẩu", access: "user", body: auth.changePasswordSchema, errors: { 400: "Mật khẩu hiện tại không đúng / dữ liệu không hợp lệ" } }),
+    patch: op("/api/auth/password", { tag: "Tài khoản", summary: "Đổi mật khẩu", access: "user", body: auth.changePasswordSchema, errors: { 400: "Mật khẩu hiện tại không đúng / dữ liệu không hợp lệ", 403: "Tài khoản demo dùng chung không đổi được mật khẩu" } }),
   },
 
   /* ----- Thực đơn ----- */

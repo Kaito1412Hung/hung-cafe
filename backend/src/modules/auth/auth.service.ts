@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { env } from "../../config/env";
 import { pool } from "../../db/pool";
 import { AppError } from "../../utils/AppError";
 import type { LoginInput, RegisterInput, Role, UpdateProfileInput } from "./auth.schema";
@@ -41,6 +42,18 @@ const PROFILE_COLUMNS: Record<keyof UpdateProfileInput, string> = {
   gender: "gender",
 };
 
+/** Tài khoản demo dùng chung (DEMO_EMAILS trong .env) */
+export const isDemoEmail = (email: string) => env.DEMO_EMAILS.includes(email.toLowerCase());
+
+/** Chặn thao tác làm hỏng tài khoản demo cho người dùng sau (đổi mật khẩu, xoá…) */
+async function assertNotDemo(id: number) {
+  if (!env.DEMO_EMAILS.length) return;
+  const { rows } = await pool.query<{ email: string }>("SELECT email FROM users WHERE id = $1", [id]);
+  if (rows[0] && isDemoEmail(rows[0].email)) {
+    throw new AppError(403, "Đây là tài khoản demo dùng chung nên không đổi được thông tin này. Bạn có thể đăng ký tài khoản riêng để thử đầy đủ.");
+  }
+}
+
 async function getPasswordHash(id: number) {
   const { rows } = await pool.query<{ passwordHash: string }>(`SELECT password_hash AS "passwordHash" FROM users WHERE id = $1`, [id]);
   if (!rows[0]) throw new AppError(404, "Tài khoản không tồn tại");
@@ -68,8 +81,9 @@ export async function register(input: RegisterInput): Promise<AuthResult> {
 }
 
 export async function login(input: LoginInput, ip: string): Promise<AuthResult> {
-  // Sai quá nhiều lần → tạm khoá (chống dò mật khẩu)
-  loginGuard.check(input.email, ip);
+  // Sai quá nhiều lần → tạm khoá (chống dò mật khẩu). Tài khoản demo không khoá theo email (kẻo 1 người làm khoá cho mọi người), vẫn khoá theo IP
+  const demo = isDemoEmail(input.email);
+  loginGuard.check(input.email, ip, { skipEmail: demo });
 
   const { rows } = await pool.query<PublicUser & { passwordHash: string; tokenVersion: number }>(
     `SELECT ${PUBLIC_COLUMNS}, password_hash AS "passwordHash", token_version AS "tokenVersion" FROM users WHERE email = $1`,
@@ -80,7 +94,7 @@ export async function login(input: LoginInput, ip: string): Promise<AuthResult> 
   // Báo chung một lỗi để không lộ email nào đã tồn tại
   const valid = row && (await bcrypt.compare(input.password, row.passwordHash));
   if (!valid) {
-    const left = loginGuard.fail(input.email, ip);
+    const left = loginGuard.fail(input.email, ip, { skipEmail: demo });
     const warning = left <= 0 ? " Bạn đã hết lượt thử, vui lòng đợi 15 phút." : left <= 2 ? ` Bạn còn ${left} lần thử.` : "";
     throw new AppError(401, `Email hoặc mật khẩu không đúng.${warning}`);
   }
@@ -96,6 +110,7 @@ export async function findById(id: number): Promise<PublicUser | null> {
 }
 
 export async function updateProfile(id: number, input: UpdateProfileInput): Promise<PublicUser> {
+  await assertNotDemo(id);
   const sets: string[] = [];
   const values: unknown[] = [];
   for (const [field, value] of Object.entries(input)) {
@@ -115,6 +130,7 @@ export async function updateProfile(id: number, input: UpdateProfileInput): Prom
 }
 
 export async function updateAvatar(id: number, avatar: string): Promise<PublicUser> {
+  await assertNotDemo(id);
   const { rows } = await pool.query<PublicUser>(`UPDATE users SET avatar = $1 WHERE id = $2 RETURNING ${PUBLIC_COLUMNS}`, [avatar, id]);
   if (!rows[0]) throw new AppError(404, "Tài khoản không tồn tại");
   return rows[0];
@@ -131,6 +147,7 @@ async function bumpTokenVersion(id: number) {
 
 /** Đổi mật khẩu xong thì các thiết bị khác bị đăng xuất; thiết bị hiện tại nhận token mới */
 export async function changePassword(id: number, currentPassword: string, newPassword: string) {
+  await assertNotDemo(id);
   const valid = await bcrypt.compare(currentPassword, await getPasswordHash(id));
   if (!valid) throw new AppError(400, "Mật khẩu hiện tại không đúng", { currentPassword: "Mật khẩu hiện tại không đúng" });
 
@@ -139,12 +156,14 @@ export async function changePassword(id: number, currentPassword: string, newPas
 }
 
 export async function logoutAllDevices(id: number) {
+  await assertNotDemo(id);
   await bumpTokenVersion(id);
 }
 
 /** Khách tự xoá tài khoản (phải nhập đúng mật khẩu). Đơn hàng cũ vẫn giữ (user_id → NULL). */
 export async function deleteOwnAccount(id: number, role: Role, password: string) {
   if (role === "admin") throw new AppError(400, "Tài khoản quản trị không thể tự xoá. Hãy nhờ admin khác hạ quyền trước.");
+  await assertNotDemo(id);
   const valid = await bcrypt.compare(password, await getPasswordHash(id));
   if (!valid) throw new AppError(400, "Mật khẩu không đúng", { password: "Mật khẩu không đúng" });
   await pool.query("DELETE FROM users WHERE id = $1", [id]);

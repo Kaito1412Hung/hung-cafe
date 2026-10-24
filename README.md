@@ -12,10 +12,28 @@
 ![Express](https://img.shields.io/badge/Express_5-000000?logo=express&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
 ![VNPay](https://img.shields.io/badge/VNPay-005BAA)
+![Vercel](https://img.shields.io/badge/Vercel-000000?logo=vercel&logoColor=white)
+![Render](https://img.shields.io/badge/Render-46E3B7?logo=render&logoColor=black)
+![Neon](https://img.shields.io/badge/Neon-00E599?logo=postgresql&logoColor=black)
+
+### 🌐 [Xem web thật: hung-cafe.vercel.app](https://hung-cafe.vercel.app) · 📖 [Tài liệu API](https://hung-cafe.vercel.app/api/docs)
 
 ![Trang chủ Hưng Café](docs/images/trang-chu.png)
 
 </div>
+
+## 👀 Xem thử
+
+| | |
+| --- | --- |
+| **Web** | https://hung-cafe.vercel.app |
+| **Tài khoản khách demo** | `khach@hungcafe.vn` · mật khẩu `demo123456` (đã có sẵn lịch sử 7 đơn hàng) |
+| **Tài liệu API (Swagger)** | https://hung-cafe.vercel.app/api/docs |
+
+- Muốn thử đầy đủ (đổi mật khẩu, sửa hồ sơ…) thì bấm **Đăng ký** tạo tài khoản riêng. Tài khoản demo dùng chung nên bị khoá các thao tác đó để người sau vẫn vào được.
+- Dùng máy chủ miễn phí nên **lần đầu mở có thể chậm 30–60 giây** (máy chủ đang "ngủ"), sau đó nhanh bình thường.
+- Web thật hiện chỉ bật **thanh toán tiền mặt khi nhận**; VNPay chạy ở môi trường thử trên máy.
+- Trang quản trị chỉ dành cho chủ quán. Xem trước giao diện admin ở mục **📸 Hình ảnh** bên dưới.
 
 <!-- Quay xong GIF demo thì bỏ dấu chú thích ở dòng dưới:
 ![Demo: khách đặt món → admin xác nhận → khách thấy đơn đổi trạng thái](docs/images/demo.gif)
@@ -31,6 +49,7 @@
 - **Giờ Việt Nam ở mọi nơi:** lưu `TIMESTAMPTZ`, tính và hiển thị theo `Asia/Ho_Chi_Minh` (đơn hàng, thống kê, file Excel), máy chủ đặt ở múi giờ nào cũng đúng.
 - **Ảnh món lưu trên Cloudinary:** upload có chữ ký (secret không rời máy chủ), tự chọn định dạng nhẹ nhất (`f_auto,q_auto`, ảnh nhẹ hơn khoảng 3 lần). Máy chủ không giữ file nên deploy lại không mất ảnh. Chưa điền mã thì tự lưu ổ cứng như cũ.
 - **Tài liệu API bằng Swagger** (`/api/docs`, chuẩn OpenAPI 3.1): 78 API chia 11 nhóm, bấm thử ngay trên trình duyệt. Phần "gửi lên gì" sinh tự động từ schema **zod** đang dùng để kiểm tra dữ liệu, nên tài liệu không bao giờ lệch với code.
+- **Deploy thật trên cloud:** Vercel (giao diện) → Render (API) → Neon (PostgreSQL) + Cloudinary (ảnh). Đã đo chuỗi proxy Vercel → Cloudflare → Render để lấy đúng IP người dùng cho phần chống spam (`TRUST_PROXY`). Tài khoản demo dùng chung được bảo vệ: không đổi được mật khẩu / hồ sơ / xoá tài khoản, gõ sai mật khẩu không làm khoá người khác.
 - **Thống kê cho chủ quán:** doanh thu theo 7 / 30 / 90 ngày hoặc cả năm theo tháng, món bán chạy, xuất báo cáo **Excel**.
 
 ## 📸 Hình ảnh
@@ -60,6 +79,15 @@ flowchart LR
     V -- "kết quả (return + IPN)" --> B
     B -- "ảnh món (upload có chữ ký)" --> C["Cloudinary<br/>(lưu ảnh)"]
 ```
+
+**Khi chạy thật (deploy):**
+
+| Phần | Chạy ở | Ghi chú |
+| --- | --- | --- |
+| Giao diện Next.js | **Vercel** | Chuyển tiếp `/api/*` sang backend, tự build lại khi push GitHub |
+| API Express | **Render** (Singapore) | Gói miễn phí, tự deploy lại khi push GitHub |
+| PostgreSQL | **Neon** (Singapore) | Kết nối có SSL |
+| Ảnh món | **Cloudinary** | |
 
 Backend chia theo module: `routes → controller → service (SQL) → schema (zod)`. Luồng chi tiết (đặt hàng, VNPay, thống kê) xem ở [docs/kien-truc.md](docs/kien-truc.md).
 
@@ -117,14 +145,14 @@ docs/       Tài liệu: cấu trúc database, luồng hoạt động chính, h�
 
 ## 📚 Tài liệu
 
-- 📖 **Tài liệu API tương tác (Swagger):** chạy backend rồi mở http://localhost:4000/api/docs
+- 📖 **Tài liệu API tương tác (Swagger):** https://hung-cafe.vercel.app/api/docs (hoặc chạy backend rồi mở http://localhost:4000/api/docs)
 - [Danh sách API](backend/README.md#api)
 - [Cấu trúc database](docs/database.md)
 - [Các phần nối với nhau thế nào](docs/kien-truc.md)
 
 ## 🗺️ Dự định phát triển
 
-- [ ] Deploy lên mạng + tài khoản demo để xem thử
+- [x] Deploy lên mạng + tài khoản demo để xem thử
 - [x] Tài liệu API bằng Swagger (`/api/docs`)
 - [ ] Test tự động (Jest cho backend, Playwright cho giao diện)
 - [ ] Realtime bằng Socket.IO: admin thấy đơn mới ngay, khách thấy đơn đổi trạng thái không cần tải lại

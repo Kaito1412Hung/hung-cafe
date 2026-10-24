@@ -78,9 +78,9 @@ const failsByIp = new HitCounter(LOGIN_WINDOW);
 
 export const loginGuard = {
   /** Gọi TRƯỚC khi kiểm tra mật khẩu: đang bị khoá thì báo lỗi 429 luôn */
-  check(email: string, ip: string) {
+  check(email: string, ip: string, options: { skipEmail?: boolean } = {}) {
     const emailKey = email.toLowerCase();
-    if (failsByEmail.count(emailKey) >= MAX_FAILS_PER_EMAIL) {
+    if (!options.skipEmail && failsByEmail.count(emailKey) >= MAX_FAILS_PER_EMAIL) {
       throw new AppError(
         429,
         `Bạn đã nhập sai mật khẩu ${MAX_FAILS_PER_EMAIL} lần. Tài khoản tạm khoá đăng nhập, thử lại sau ${minutes(failsByEmail.retryAfter(emailKey))} phút hoặc bấm "Quên mật khẩu".`,
@@ -91,9 +91,10 @@ export const loginGuard = {
     }
   },
 
-  /** Ghi nhận 1 lần sai, trả về số lần còn được thử */
-  fail(email: string, ip: string) {
+  /** Ghi nhận 1 lần sai, trả về số lần còn được thử (skipEmail: tài khoản demo, chỉ đếm theo IP) */
+  fail(email: string, ip: string, options: { skipEmail?: boolean } = {}) {
     failsByIp.add(ip);
+    if (options.skipEmail) return MAX_FAILS_PER_EMAIL;
     return MAX_FAILS_PER_EMAIL - failsByEmail.add(email.toLowerCase());
   },
 

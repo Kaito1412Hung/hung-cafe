@@ -16,7 +16,7 @@ const envSchema = z.object({
   /**
    * Tin bao nhiêu "trạm trung gian" (proxy) đứng trước backend khi đọc IP thật của khách từ header X-Forwarded-For.
    * - Máy dev: "loopback" (chỉ tin Next.js chạy cùng máy)
-   * - Deploy Vercel → Render: số trạm, VD "2" (Vercel + bộ cân bằng tải của Render)
+   * - Deploy Vercel → Render: "4" (đã đo bằng DEBUG_IP: Vercel → Cloudflare → bộ chia tải Render → máy Render)
    * Dùng cho chống spam / dò mật khẩu: sai thì mọi khách bị tính chung 1 IP.
    */
   TRUST_PROXY: z
@@ -24,6 +24,14 @@ const envSchema = z.object({
     .trim()
     .default("loopback")
     .transform((v): boolean | number | string => (/^\d+$/.test(v) ? Number(v) : v === "true" ? true : v === "false" ? false : v)),
+  /**
+   * Tài khoản demo dùng chung (mật khẩu công khai trong README), cách nhau dấu phẩy.
+   * Bị khoá: đổi mật khẩu / hồ sơ / ảnh, đăng xuất mọi thiết bị, xoá tài khoản; gõ sai mật khẩu không khoá đăng nhập.
+   */
+  DEMO_EMAILS: z
+    .string()
+    .default("")
+    .transform((v) => v.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean)),
   /** Bật tạm khi cần đo TRUST_PROXY: /api/health trả thêm chuỗi proxy (X-Forwarded-For…). Đo xong thì tắt */
   DEBUG_IP: z
     .string()
