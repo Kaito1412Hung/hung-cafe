@@ -1,0 +1,78 @@
+# CI (Continuous Integration): mỗi lần push / mở Pull Request, GitHub tự mượn một máy tính
+# để kiểm tra code. Lỗi → dấu ❌ đỏ cạnh commit + email báo; qua hết → dấu ✅ xanh.
+# Xem kết quả: tab "Actions" trên trang GitHub của repo.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: # cho phép bấm chạy tay trong tab Actions
+
+# Push liên tục thì huỷ lần chạy cũ, chỉ chạy bản mới nhất
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend · typecheck + test + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    # Database PostgreSQL tạm cho test (chạy xong tự mất, không liên quan dữ liệu thật)
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hung_cafe_test
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Cài thư viện
+        run: npm ci
+      - name: Kiểm tra kiểu TypeScript (cả code test)
+        run: npm run typecheck
+      - name: Chạy test tự động (Vitest)
+        run: npm test
+      - name: Build (giống lệnh build trên Render)
+        run: npm run build
+
+  frontend:
+    name: Frontend · lint + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Cài thư viện
+        run: npm ci
+      - name: Kiểm tra code (ESLint)
+        run: npm run lint
+      - name: Build (giống lệnh build trên Vercel)
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1

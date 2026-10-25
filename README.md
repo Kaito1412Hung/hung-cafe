@@ -4,6 +4,7 @@
 
 **Website đặt đồ uống cho quán cà phê.** Khách xem thực đơn, chọn size / đường / đá / topping, đặt hàng, thanh toán VNPay và theo dõi đơn từng bước. Chủ quán quản lý món, đơn hàng, khách hàng, mã giảm giá và xem thống kê doanh thu.
 
+[![CI](https://github.com/Kaito1412Hung/hung-cafe/actions/workflows/ci.yml/badge.svg)](https://github.com/Kaito1412Hung/hung-cafe/actions/workflows/ci.yml)
 ![Next.js](https://img.shields.io/badge/Next.js_16-000000?logo=nextdotjs&logoColor=white)
 ![React](https://img.shields.io/badge/React_19-149ECA?logo=react&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
@@ -49,6 +50,7 @@
 - **Giờ Việt Nam ở mọi nơi:** lưu `TIMESTAMPTZ`, tính và hiển thị theo `Asia/Ho_Chi_Minh` (đơn hàng, thống kê, file Excel), máy chủ đặt ở múi giờ nào cũng đúng.
 - **Ảnh món lưu trên Cloudinary:** upload có chữ ký (secret không rời máy chủ), tự chọn định dạng nhẹ nhất (`f_auto,q_auto`, ảnh nhẹ hơn khoảng 3 lần). Máy chủ không giữ file nên deploy lại không mất ảnh. Chưa điền mã thì tự lưu ổ cứng như cũ.
 - **Tài liệu API bằng Swagger** (`/api/docs`, chuẩn OpenAPI 3.1): 78 API chia 11 nhóm, bấm thử ngay trên trình duyệt. Phần "gửi lên gì" sinh tự động từ schema **zod** đang dùng để kiểm tra dữ liệu, nên tài liệu không bao giờ lệch với code.
+- **Test tự động + CI/CD:** 65 bài test bằng **Vitest + Supertest**: chữ ký VNPay (sửa số tiền là bị từ chối), tính tiền / giảm giá, giờ mở cửa theo giờ VN, đặt hàng trừ đúng tồn kho, **2 người cùng mua phần cuối cùng thì chỉ 1 người mua được**, huỷ đơn trả kho, phân quyền, mã giảm giá hết lượt. Test API chạy trên database riêng tạo mới mỗi lần. **GitHub Actions** tự chạy typecheck + test + build mỗi lần push; Render / Vercel tự deploy.
 - **Deploy thật trên cloud:** Vercel (giao diện) → Render (API) → Neon (PostgreSQL) + Cloudinary (ảnh). Đã đo chuỗi proxy Vercel → Cloudflare → Render để lấy đúng IP người dùng cho phần chống spam (`TRUST_PROXY`). Tài khoản demo dùng chung được bảo vệ: không đổi được mật khẩu / hồ sơ / xoá tài khoản, gõ sai mật khẩu không làm khoá người khác.
 - **Thống kê cho chủ quán:** doanh thu theo 7 / 30 / 90 ngày hoặc cả năm theo tháng, món bán chạy, xuất báo cáo **Excel**.
 
@@ -131,6 +133,13 @@ npm run dev               # http://localhost:3000
 
 Tài khoản mẫu (admin + khách) lấy theo các biến `SEED_*` trong `backend/.env`.
 
+**Chạy test tự động** (cần PostgreSQL đang chạy, test tự tạo database riêng `hung_cafe_test`, không đụng dữ liệu thật):
+
+```bash
+cd backend
+npm test                  # 65 bài test, khoảng 20 giây
+```
+
 Muốn lưu ảnh món trên cloud: đăng ký miễn phí tại [cloudinary.com](https://cloudinary.com), điền `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` vào `backend/.env`. Không điền thì ảnh lưu trong thư mục `backend/uploads/`.
 
 Muốn bật VNPay: đăng ký tài khoản sandbox tại [sandbox.vnpayment.vn](https://sandbox.vnpayment.vn/devreg/), điền `VNP_TMN_CODE` và `VNP_HASH_SECRET` vào `backend/.env`. Không điền thì web chỉ có thanh toán tiền mặt.
@@ -154,7 +163,8 @@ docs/       Tài liệu: cấu trúc database, luồng hoạt động chính, h�
 
 - [x] Deploy lên mạng + tài khoản demo để xem thử
 - [x] Tài liệu API bằng Swagger (`/api/docs`)
-- [ ] Test tự động (Jest cho backend, Playwright cho giao diện)
+- [x] Test tự động cho backend (Vitest + Supertest)
+- [ ] Test giao diện tự động (Playwright)
 - [ ] Realtime bằng Socket.IO: admin thấy đơn mới ngay, khách thấy đơn đổi trạng thái không cần tải lại
-- [ ] CI/CD bằng GitHub Actions
+- [x] CI/CD bằng GitHub Actions (test + build mỗi lần push, Render / Vercel tự deploy)
 - [ ] App mobile (React Native)

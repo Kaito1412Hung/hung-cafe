@@ -102,6 +102,18 @@ npm run dev                 # http://localhost:4000
 
 Lỗi luôn trả về dạng `{ "message": "...", "errors": { "field": "..." } }` với status 400/401/403/404/409/500.
 
+## Test tự động
+
+```bash
+npm test            # chạy hết 1 lần (Vitest)
+npm run test:watch  # tự chạy lại khi sửa code
+```
+
+- `tests/unit/`: test hàm, không cần database (chữ ký VNPay / Cloudinary, tính tiền, giảm giá, kiểm tra dữ liệu zod, giờ mở cửa theo giờ VN)
+- `tests/api/`: gọi API thật bằng Supertest trên database **riêng `hung_cafe_test`** (xoá + tạo lại mỗi lần chạy, chốt an toàn: tên phải kết thúc `_test`). Trên máy lấy server trong `DATABASE_URL`; trên GitHub Actions dùng `TEST_DATABASE_URL`
+- Cấu hình: `vitest.config.ts` (biến môi trường riêng cho test), `tests/global-setup.ts` (tạo database), `tests/helpers.ts` (trình duyệt giả giữ cookie, mỗi người 1 IP)
+- CI: `.github/workflows/ci.yml` chạy typecheck + test + build mỗi lần push
+
 ## Bảo mật cơ bản
 
 - **Chống dò mật khẩu:** sai 5 lần / 15 phút với 1 email → khoá đăng nhập email đó 15 phút; 1 IP sai quá 20 lần cũng bị khoá (`middlewares/rateLimit.ts`).

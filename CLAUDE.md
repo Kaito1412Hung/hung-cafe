@@ -7,7 +7,7 @@ Chủ project đang **học web cơ bản** → giải thích từng bước, d�
 
 - **Luôn trả lời bằng tiếng Việt**, kể cả phần tóm tắt cuối và nút bấm.
 - **Chưa kêu sửa thì không sửa code.** "Chỉ hỏi thôi" = chỉ trả lời (trả lời chi tiết vẫn được), không đụng file. Muốn xem trước giao diện → vẽ hình minh hoạ, không sửa code.
-- Sửa xong phải **test lại cả chức năng cũ**, không để chức năng đã làm bị lỗi. Chạy `npm run typecheck` (backend), `npm run lint` + `npm run build` (frontend).
+- Sửa xong phải **test lại cả chức năng cũ**, không để chức năng đã làm bị lỗi. Chạy `npm run typecheck` + `npm test` (backend), `npm run lint` + `npm run build` (frontend). Thêm / sửa chức năng quan trọng → thêm test trong `backend/tests/`. Push xong xem CI (tab Actions trên GitHub) phải ✅.
 - **Test xong thì xoá dữ liệu test** mình tạo ra, đưa database về như trước: `npm run db:snapshot` trước khi test, `npm run db:restore -- <bản chụp> --yes` sau khi test (tự so đủ các bảng). Quy trình đầy đủ: skill `/test-roi-don`.
 - **Không đọc file `.env`** (đã bị chặn trong `.claude/settings.json`). Cần database thì dùng các script trong `backend/scripts/` (tự đọc `.env`, không in mật khẩu). Gửi chữ tiếng Việt qua API bằng `fetch` trong Node, không dùng `curl` trong Git Bash (làm hỏng chữ có dấu).
 - Tài khoản test của chủ project: khách **`kaito@gmail.com`**, admin **`kaitokid@gmail.com`**. Khi được nhờ "xoá phần tôi test" → liệt kê dữ liệu / thay đổi của 2 tài khoản này trước (`npm run test-accounts`), chủ project xác nhận rồi mới xoá; giữ lại tài khoản. Quy trình: skill `/xoa-du-lieu-test`.
