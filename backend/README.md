@@ -102,6 +102,14 @@ npm run dev                 # http://localhost:4000
 
 Lỗi luôn trả về dạng `{ "message": "...", "errors": { "field": "..." } }` với status 400/401/403/404/409/500.
 
+## Realtime (Socket.IO)
+
+- Chạy chung cổng với API (`server.ts` gọi `initRealtime`). Trình duyệt lấy vé `GET /api/auth/socket-token` (2 phút) rồi kết nối kèm `auth: { token }`
+- Phòng: `user:<id>` cho từng người, `admins` cho admin
+- Sự kiện: `notification:new`, `order:new` (admin), `order:updated` (admin + chủ đơn)
+- Tin tạo trong transaction chỉ gửi sau COMMIT: `src/db/afterCommit.ts`
+- Code: `src/realtime/socket.ts`; test: `tests/api/realtime.test.ts`
+
 ## Test tự động
 
 ```bash

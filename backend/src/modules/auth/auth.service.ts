@@ -104,6 +104,13 @@ export async function login(input: LoginInput, ip: string): Promise<AuthResult> 
   return { user, tokenVersion };
 }
 
+/** token_version hiện tại (để ký vé realtime cùng "phiên" với cookie đăng nhập) */
+export async function getTokenVersion(id: number) {
+  const { rows } = await pool.query<{ tokenVersion: number }>(`SELECT token_version AS "tokenVersion" FROM users WHERE id = $1`, [id]);
+  if (!rows[0]) throw new AppError(401, "Tài khoản không còn tồn tại");
+  return rows[0].tokenVersion;
+}
+
 export async function findById(id: number): Promise<PublicUser | null> {
   const { rows } = await pool.query<PublicUser>(`SELECT ${PUBLIC_COLUMNS} FROM users WHERE id = $1`, [id]);
   return rows[0] ?? null;

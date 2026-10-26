@@ -50,7 +50,8 @@
 - **Giờ Việt Nam ở mọi nơi:** lưu `TIMESTAMPTZ`, tính và hiển thị theo `Asia/Ho_Chi_Minh` (đơn hàng, thống kê, file Excel), máy chủ đặt ở múi giờ nào cũng đúng.
 - **Ảnh món lưu trên Cloudinary:** upload có chữ ký (secret không rời máy chủ), tự chọn định dạng nhẹ nhất (`f_auto,q_auto`, ảnh nhẹ hơn khoảng 3 lần). Máy chủ không giữ file nên deploy lại không mất ảnh. Chưa điền mã thì tự lưu ổ cứng như cũ.
 - **Tài liệu API bằng Swagger** (`/api/docs`, chuẩn OpenAPI 3.1): 78 API chia 11 nhóm, bấm thử ngay trên trình duyệt. Phần "gửi lên gì" sinh tự động từ schema **zod** đang dùng để kiểm tra dữ liệu, nên tài liệu không bao giờ lệch với code.
-- **Test tự động + CI/CD:** 65 bài test bằng **Vitest + Supertest**: chữ ký VNPay (sửa số tiền là bị từ chối), tính tiền / giảm giá, giờ mở cửa theo giờ VN, đặt hàng trừ đúng tồn kho, **2 người cùng mua phần cuối cùng thì chỉ 1 người mua được**, huỷ đơn trả kho, phân quyền, mã giảm giá hết lượt. Test API chạy trên database riêng tạo mới mỗi lần. **GitHub Actions** tự chạy typecheck + test + build mỗi lần push; Render / Vercel tự deploy.
+- **Realtime bằng Socket.IO:** khách đặt đơn → trang admin hiện đơn mới ngay + tiếng "ting"; admin đổi trạng thái → thanh tiến trình của khách tự nhảy bước, không cần F5. Thay cho cách cũ "cứ 30 giây hỏi server một lần" (polling). Mỗi người một **phòng** riêng (khách A không bao giờ nhận tin đơn của khách B); vì Vercel không chuyển tiếp WebSocket nên trình duyệt nối thẳng Render bằng **vé JWT 2 phút**; tin chỉ gửi **sau khi transaction COMMIT** (lỗi giữa chừng không có "đơn mới ảo"); mất mạng tự nối lại và tải lại dữ liệu.
+- **Test tự động + CI/CD:** 71 bài test bằng **Vitest + Supertest**: chữ ký VNPay (sửa số tiền là bị từ chối), tính tiền / giảm giá, giờ mở cửa theo giờ VN, đặt hàng trừ đúng tồn kho, **2 người cùng mua phần cuối cùng thì chỉ 1 người mua được**, huỷ đơn trả kho, phân quyền, mã giảm giá hết lượt. Test API chạy trên database riêng tạo mới mỗi lần. **GitHub Actions** tự chạy typecheck + test + build mỗi lần push; Render / Vercel tự deploy.
 - **Deploy thật trên cloud:** Vercel (giao diện) → Render (API) → Neon (PostgreSQL) + Cloudinary (ảnh). Đã đo chuỗi proxy Vercel → Cloudflare → Render để lấy đúng IP người dùng cho phần chống spam (`TRUST_PROXY`). Tài khoản demo dùng chung được bảo vệ: không đổi được mật khẩu / hồ sơ / xoá tài khoản, gõ sai mật khẩu không làm khoá người khác.
 - **Thống kê cho chủ quán:** doanh thu theo 7 / 30 / 90 ngày hoặc cả năm theo tháng, món bán chạy, xuất báo cáo **Excel**.
 
@@ -80,6 +81,7 @@ flowchart LR
     B -- "link thanh toán có chữ ký" --> V["VNPay"]
     V -- "kết quả (return + IPN)" --> B
     B -- "ảnh món (upload có chữ ký)" --> C["Cloudinary<br/>(lưu ảnh)"]
+    U <-. "realtime Socket.IO (nối thẳng backend)" .-> B
 ```
 
 **Khi chạy thật (deploy):**
@@ -137,7 +139,7 @@ Tài khoản mẫu (admin + khách) lấy theo các biến `SEED_*` trong `backe
 
 ```bash
 cd backend
-npm test                  # 65 bài test, khoảng 20 giây
+npm test                  # 71 bài test, khoảng 25 giây
 ```
 
 Muốn lưu ảnh món trên cloud: đăng ký miễn phí tại [cloudinary.com](https://cloudinary.com), điền `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` vào `backend/.env`. Không điền thì ảnh lưu trong thư mục `backend/uploads/`.
@@ -165,6 +167,6 @@ docs/       Tài liệu: cấu trúc database, luồng hoạt động chính, h�
 - [x] Tài liệu API bằng Swagger (`/api/docs`)
 - [x] Test tự động cho backend (Vitest + Supertest)
 - [ ] Test giao diện tự động (Playwright)
-- [ ] Realtime bằng Socket.IO: admin thấy đơn mới ngay, khách thấy đơn đổi trạng thái không cần tải lại
+- [x] Realtime bằng Socket.IO: admin thấy đơn mới ngay, khách thấy đơn đổi trạng thái không cần tải lại
 - [x] CI/CD bằng GitHub Actions (test + build mỗi lần push, Render / Vercel tự deploy)
 - [ ] App mobile (React Native)

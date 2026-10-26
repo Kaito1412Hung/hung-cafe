@@ -28,6 +28,8 @@ authRouter.post("/forgot-password", forgotLimit, validateBody(forgotPasswordSche
 // Hồ sơ của chính mình
 // Chưa đăng nhập vẫn trả 200 + { user: null } (thay vì 401) → Console trình duyệt không hiện dòng đỏ mỗi lần mở web
 authRouter.get("/me", optionalAuth, controller.me);
+// Vé mở kết nối realtime (Socket.IO nối thẳng backend, không mang theo cookie khi deploy)
+authRouter.get("/socket-token", requireAuth, controller.socketToken);
 authRouter.patch("/me", requireAuth, validateBody(updateProfileSchema), controller.updateProfile);
 authRouter.put("/me/avatar", requireAuth, validateBody(avatarSchema), controller.updateAvatar);
 authRouter.delete("/me", requireAuth, validateBody(deleteAccountSchema), controller.deleteAccount);

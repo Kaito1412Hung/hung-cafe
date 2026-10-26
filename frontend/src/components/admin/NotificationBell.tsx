@@ -2,14 +2,20 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, BellOff, CheckCheck, KeyRound, MessageCircle, PackageCheck, PackageX, Receipt, Star, UserPlus, XCircle } from "lucide-react";
+import { Bell, BellOff, CheckCheck, KeyRound, MessageCircle, PackageCheck, PackageX, Receipt, Star, UserPlus, Volume2, VolumeX, XCircle } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { useAuth } from "@/context/AuthContext";
+import { useSocketEvent, useSocketReconnect } from "@/context/SocketContext";
+import { isSoundOn, playTing, setSoundOn } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 import { notificationService } from "@/services/notificationService";
 import type { Notification, NotificationType } from "@/types/notification";
 
-/** Bao lâu hỏi server một lần (polling). Nâng cao hơn có thể dùng WebSocket / SSE. */
-const POLL_INTERVAL = 30_000;
+/**
+ * Thông báo mới đến ngay qua realtime (Socket.IO, xem context/SocketContext.tsx).
+ * Vẫn hỏi lại server mỗi 5 phút làm dự phòng (lỡ mất kết nối realtime mà chưa nối lại được).
+ */
+const POLL_INTERVAL = 5 * 60_000;
 
 const TYPE_STYLE: Record<NotificationType, { icon: typeof Bell; color: string }> = {
   new_order: { icon: Receipt, color: "bg-emerald-50 text-emerald-600" },
@@ -42,6 +48,10 @@ function timeAgo(iso: string) {
 export function NotificationBell() {
   const router = useRouter();
   const toast = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  // Nút bật / tắt tiếng chỉ hiện trong khung thông báo (mở bằng tay) → đọc localStorage ngay được, không lệch lúc render ở server
+  const [soundOn, setSoundOnState] = useState(() => (typeof window === "undefined" ? true : isSoundOn()));
   const ref = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Notification[] | null>(null);
@@ -77,6 +87,23 @@ export function NotificationBell() {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [load]);
+
+  // Realtime: thông báo mới → thêm lên đầu, chuông +1, hiện toast; admin có đơn mới thì kêu "ting"
+  useSocketEvent("notification:new", (n) => {
+    setItems((prev) => (prev ? [n, ...prev.filter((x) => x.id !== n.id)].slice(0, 20) : prev));
+    setUnread((u) => u + 1);
+    latestSeenId.current = Math.max(latestSeenId.current ?? 0, n.id);
+    toast(`🔔 ${n.title}`, "info");
+    if (isAdmin && n.type === "new_order") playTing();
+  });
+  // Nối lại sau khi mất mạng → tải lại cho chắc (không bỏ sót thông báo)
+  useSocketReconnect(load);
+
+  const toggleSound = () => {
+    setSoundOn(!soundOn);
+    setSoundOnState(!soundOn);
+    if (!soundOn) playTing(); // bật lại → kêu thử 1 tiếng
+  };
 
   // Click ra ngoài / Esc thì đóng
   useEffect(() => {
@@ -137,13 +164,23 @@ export function NotificationBell() {
       {open && (
         <div className="absolute right-0 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-coffee-100 animate-modal-in max-sm:fixed max-sm:inset-x-4 max-sm:top-[4.5rem] max-sm:mt-0 max-sm:w-auto">
           <div className="flex items-center justify-between border-b border-coffee-100 px-4 py-3">
-            <p className="font-semibold text-coffee-950">
+            <p className="whitespace-nowrap font-semibold text-coffee-950">
               Thông báo {unread > 0 && <span className="ml-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600">{unread} mới</span>}
             </p>
+            {isAdmin && (
+              <button
+                onClick={toggleSound}
+                className="ml-auto mr-2 cursor-pointer rounded-full p-1.5 text-coffee-500 transition hover:bg-coffee-100 hover:text-coffee-950"
+                aria-label={soundOn ? "Tắt tiếng báo đơn mới" : "Bật tiếng báo đơn mới"}
+                title={soundOn ? "Đang bật tiếng \"ting\" khi có đơn mới — bấm để tắt" : "Đang tắt tiếng — bấm để bật"}
+              >
+                {soundOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+              </button>
+            )}
             <button
               onClick={markAll}
               disabled={unread === 0}
-              className="flex cursor-pointer items-center gap-1 text-xs font-medium text-coffee-600 hover:text-coffee-950 disabled:cursor-default disabled:opacity-40"
+              className="flex cursor-pointer items-center gap-1 whitespace-nowrap text-xs font-medium text-coffee-600 hover:text-coffee-950 disabled:cursor-default disabled:opacity-40"
             >
               <CheckCheck className="h-3.5 w-3.5" /> Đánh dấu đã đọc tất cả
             </button>

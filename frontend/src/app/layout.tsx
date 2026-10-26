@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Be_Vietnam_Pro, Playfair_Display } from "next/font/google";
 import { ToastProvider } from "@/components/ui/Toast";
 import { AuthProvider } from "@/context/AuthContext";
+import { SocketProvider } from "@/context/SocketContext";
 import { CartProvider } from "@/context/CartContext";
 import { ShopSettingsProvider } from "@/context/ShopSettingsContext";
 import { CategoriesProvider } from "@/context/CategoriesContext";
@@ -42,11 +43,13 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ShopSettingsProvider>
           <CategoriesProvider>
             <AuthProvider>
-              <CartProvider>
-                <FavoritesProvider>
-                  <ToastProvider>{children}</ToastProvider>
-                </FavoritesProvider>
-              </CartProvider>
+              <SocketProvider>
+                <CartProvider>
+                  <FavoritesProvider>
+                    <ToastProvider>{children}</ToastProvider>
+                  </FavoritesProvider>
+                </CartProvider>
+              </SocketProvider>
             </AuthProvider>
           </CategoriesProvider>
         </ShopSettingsProvider>

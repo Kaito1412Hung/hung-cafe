@@ -1,5 +1,7 @@
 import type { PoolClient } from "pg";
+import { afterCommit, discardAfterCommit, flushAfterCommit } from "../../db/afterCommit";
 import { pool } from "../../db/pool";
+import { emitOrderUpdated, emitToAdmins } from "../../realtime/socket";
 import { env, vnpayEnabled } from "../../config/env";
 import { AppError } from "../../utils/AppError";
 import { notifyAdmins, notifyUser } from "../notifications/notifications.service";
@@ -100,6 +102,7 @@ export async function handleVnpayResult(query: Record<string, unknown>): Promise
     );
     if (success) await markOrderPaid(client, payment.orderId);
     await client.query("COMMIT");
+    flushAfterCommit(client); // lưu xong rồi mới gửi tin realtime
 
     return {
       rspCode: "00",
@@ -112,6 +115,7 @@ export async function handleVnpayResult(query: Record<string, unknown>): Promise
     console.error("Lỗi xử lý kết quả VNPay:", (err as Error).message);
     return { rspCode: "99", message: "Lỗi không xác định", status: "invalid", orderId: null };
   } finally {
+    discardAfterCommit(client);
     client.release();
   }
 }
@@ -128,6 +132,10 @@ async function markOrderPaid(client: PoolClient, orderId: number) {
   if (order.paymentStatus === "pending" && order.status === "pending") {
     await client.query(`UPDATE orders SET payment_status = 'paid', paid_at = NOW(), payment_deadline = NULL, updated_at = NOW() WHERE id = $1`, [orderId]);
     await notifyNewOrder(client, orderId);
+    afterCommit(client, () => {
+      emitToAdmins("order:new", { id: orderId });
+      emitOrderUpdated({ id: orderId, userId: order.userId, status: order.status, paymentStatus: "paid" });
+    });
     if (order.userId) {
       await notifyUser(
         order.userId,
@@ -140,6 +148,7 @@ async function markOrderPaid(client: PoolClient, orderId: number) {
 
   // Trả tiền khi đơn đã huỷ (quá hạn) hoặc đã trả rồi (trả 2 lần) → quán cần hoàn lại tiền
   await client.query(`UPDATE orders SET payment_status = 'refund_pending', updated_at = NOW() WHERE id = $1`, [orderId]);
+  afterCommit(client, () => emitOrderUpdated({ id: orderId, userId: order.userId, status: order.status, paymentStatus: "refund_pending" }));
   await notifyAdmins(
     {
       type: "order_cancelled",

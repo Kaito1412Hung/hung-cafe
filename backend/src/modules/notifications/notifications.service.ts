@@ -1,5 +1,7 @@
 import type { PoolClient } from "pg";
+import { afterCommit } from "../../db/afterCommit";
 import { pool } from "../../db/pool";
+import { emitToUser } from "../../realtime/socket";
 
 export type NotificationType =
   | "new_order"
@@ -22,6 +24,8 @@ export interface Notification {
   createdAt: Date;
 }
 
+const COLUMNS = `id, type, title, message, link, is_read AS "isRead", created_at AS "createdAt"`;
+
 /** Ngưỡng tồn kho để báo "sắp hết hàng" */
 export const LOW_STOCK_THRESHOLD = 10;
 
@@ -40,25 +44,31 @@ interface NotifyInput {
  * Truyền `client` khi đang ở trong transaction → thông báo chỉ được lưu nếu transaction COMMIT.
  */
 export async function notifyAdmins(input: NotifyInput, client: PoolClient | typeof pool = pool) {
-  await client.query(
+  const { rows } = await client.query<Notification & { userId: number }>(
     `INSERT INTO notifications (user_id, type, title, message, link)
-     SELECT id, $1, $2, $3, $4 FROM users WHERE role = 'admin'`,
+     SELECT id, $1, $2, $3, $4 FROM users WHERE role = 'admin'
+     RETURNING user_id AS "userId", ${COLUMNS}`,
     [input.type, input.title, input.message ?? "", input.link ?? ""],
   );
+  pushRealtime(rows, client);
 }
 
 /** Gửi thông báo cho 1 người cụ thể (VD: khách có đơn vừa đổi trạng thái) */
 export async function notifyUser(userId: number, input: NotifyInput, client: PoolClient | typeof pool = pool) {
-  await client.query("INSERT INTO notifications (user_id, type, title, message, link) VALUES ($1, $2, $3, $4, $5)", [
-    userId,
-    input.type,
-    input.title,
-    input.message ?? "",
-    input.link ?? "",
-  ]);
+  const { rows } = await client.query<Notification & { userId: number }>(
+    `INSERT INTO notifications (user_id, type, title, message, link) VALUES ($1, $2, $3, $4, $5)
+     RETURNING user_id AS "userId", ${COLUMNS}`,
+    [userId, input.type, input.title, input.message ?? "", input.link ?? ""],
+  );
+  pushRealtime(rows, client);
 }
 
-const COLUMNS = `id, type, title, message, link, is_read AS "isRead", created_at AS "createdAt"`;
+/** Chuông của người nhận +1 ngay (chỉ gửi sau khi đã lưu xong — xem db/afterCommit.ts) */
+function pushRealtime(rows: (Notification & { userId: number })[], client: PoolClient | typeof pool) {
+  afterCommit(client, () => {
+    for (const { userId, ...notification } of rows) emitToUser(userId, "notification:new", notification);
+  });
+}
 
 export async function listForUser(userId: number, limit: number) {
   const [list, unread] = await Promise.all([

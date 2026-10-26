@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { AUTH_COOKIE, authCookieOptions, signToken } from "../../utils/jwt";
+import { AUTH_COOKIE, authCookieOptions, signSocketToken, signToken } from "../../utils/jwt";
 import * as authService from "./auth.service";
 import { clientIp } from "../../middlewares/rateLimit";
 
@@ -24,6 +24,12 @@ export async function login(req: Request, res: Response) {
 export function logout(_req: Request, res: Response) {
   res.clearCookie(AUTH_COOKIE, clearCookieOptions);
   res.json({ message: "Đã đăng xuất" });
+}
+
+/** Vé ngắn hạn (2 phút) để mở kết nối realtime Socket.IO — xem realtime/socket.ts */
+export async function socketToken(req: Request, res: Response) {
+  const tokenVersion = await authService.getTokenVersion(req.user!.id);
+  res.json({ data: { token: signSocketToken({ id: req.user!.id, tokenVersion }) } });
 }
 
 /** Người đang đăng nhập; chưa đăng nhập / phiên hết hạn → { user: null } */

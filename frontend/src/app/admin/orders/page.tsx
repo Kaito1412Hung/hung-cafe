@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Clock, PackageCheck, Receipt, Search, Truck, Wallet } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { useSocketEvent, useSocketReconnect } from "@/context/SocketContext";
 import { Pagination } from "@/components/admin/Pagination";
 import { OrderDetailModal } from "@/components/admin/OrderDetailModal";
 import { FulfillmentTag } from "@/components/order/FulfillmentTag";
@@ -46,6 +47,8 @@ function AdminOrders() {
   const queryKey = `${status}|${debouncedSearch}|${page}`;
   const [result, setResult] = useState<{ key: string; orders: Order[]; total: number; summary: OrderSummary } | null>(null);
   const loading = result?.key !== queryKey;
+  // Tăng lên mỗi khi có tin realtime (đơn mới / đơn đổi trạng thái) → tải lại danh sách, không đổi bộ lọc nên không hiện khung "đang tải"
+  const [refreshTick, setRefreshTick] = useState(0);
 
   // Gõ tìm kiếm: đợi 350ms ngừng gõ mới gọi API (debounce)
   useEffect(() => {
@@ -62,7 +65,23 @@ function AdminOrders() {
     return () => {
       cancelled = true;
     };
-  }, [status, debouncedSearch, page, queryKey, toast]);
+  }, [status, debouncedSearch, page, queryKey, toast, refreshTick]);
+
+  // Realtime: có đơn mới hoặc đơn đổi trạng thái (từ admin khác, khách tự huỷ, thanh toán VNPay…) → tải lại.
+  // Gom nhiều tin đến dồn dập trong 300ms thành 1 lần tải
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleRefresh = (orderId?: number) => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => setRefreshTick((t) => t + 1), 300);
+    // Đơn đang mở từ thông báo (không nằm trong trang đang xem) → lấy lại riêng đơn đó
+    if (orderId && linked?.id === orderId) orderService.getById(orderId).then(setLinked).catch(() => {});
+  };
+  useEffect(() => () => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+  }, []);
+  useSocketEvent("order:new", () => scheduleRefresh());
+  useSocketEvent("order:updated", (e) => scheduleRefresh(e.id));
+  useSocketReconnect(() => scheduleRefresh());
 
   /**
    * Bấm thông báo đơn mới khi đang ở sẵn trang này: danh sách đã tải từ trước nên CHƯA có đơn đó

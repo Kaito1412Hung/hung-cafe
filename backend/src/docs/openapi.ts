@@ -192,6 +192,17 @@ const paths = {
       limited: "tối đa 5 lần / 15 phút",
     }),
   },
+  "/api/auth/socket-token": {
+    get: op("/api/auth/socket-token", {
+      tag: "Tài khoản",
+      summary: "Lấy vé mở kết nối realtime (Socket.IO)",
+      description:
+        "Vé JWT sống **2 phút**, chỉ dùng để mở kết nối Socket.IO (gửi trong `auth.token` khi kết nối), không dùng làm cookie đăng nhập được.\n\n" +
+        "Sự kiện server gửi về: `notification:new` (thông báo mới), `order:new` (admin: đơn mới), `order:updated` (đơn đổi trạng thái / thanh toán).",
+      access: "user",
+      success: [200, "`{ data: { token } }`"],
+    }),
+  },
   "/api/auth/me": {
     get: op("/api/auth/me", { tag: "Tài khoản", summary: "Thông tin tài khoản đang đăng nhập", description: "Chưa đăng nhập vẫn trả 200 với `{ user: null }`.", access: "optional" }),
     patch: op("/api/auth/me", { tag: "Tài khoản", summary: "Sửa hồ sơ", description: "Chỉ gửi những ô muốn đổi.", access: "user", body: auth.updateProfileSchema, errors: { 403: "Tài khoản demo dùng chung không được làm thao tác này" }, }),

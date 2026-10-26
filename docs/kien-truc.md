@@ -82,7 +82,15 @@ Vì sao cần Cloudinary: máy chủ deploy (VD Render bản miễn phí) **xoá
 
 - Đơn mới, khách huỷ đơn, món sắp hết, khách mới đăng ký, tin nhắn liên hệ → thông báo cho **mọi admin**.
 - Admin đổi trạng thái đơn → thông báo cho **khách** của đơn đó.
-- Frontend hỏi lại `GET /api/notifications` mỗi 30 giây (chưa dùng thời gian thực).
+- Thông báo đến **ngay** qua realtime (mục bên dưới). Frontend vẫn hỏi lại `GET /api/notifications` mỗi 5 phút làm dự phòng.
+
+## Realtime (Socket.IO)
+
+1. Đăng nhập xong, `SocketProvider` (`frontend/src/context/SocketContext.tsx`) xin vé `GET /api/auth/socket-token` (JWT `use: "socket"`, sống 2 phút) rồi mở Socket.IO **thẳng tới backend** (`NEXT_PUBLIC_SOCKET_URL`) — vì Vercel không chuyển tiếp WebSocket và cookie đăng nhập thuộc tên miền Vercel. Mỗi lần nối lại xin vé mới.
+2. `realtime/socket.ts` kiểm tra vé + `token_version` → cho vào phòng `user:<id>`; admin vào thêm phòng `admins`. Vé realtime không dùng làm cookie đăng nhập được (và ngược lại).
+3. Sự kiện: `notification:new` (người nhận thông báo), `order:new` (admin: đơn tiền mặt lúc đặt, đơn VNPay lúc trả xong), `order:updated` (admin + chủ đơn: đổi trạng thái, huỷ, thanh toán, hoàn tiền).
+4. Thông báo / sự kiện tạo trong transaction được **xếp hàng** (`db/afterCommit.ts`), chỉ gửi sau `COMMIT`; `ROLLBACK` thì bỏ → không có "đơn mới ảo".
+5. Giao diện: chuông thêm thông báo + toast (admin có đơn mới thì kêu "ting", tắt / bật bằng nút loa, lưu trong `localStorage`), trang **Đơn hàng** admin tải lại danh sách, **Đơn hàng của tôi** lấy lại đúng đơn vừa đổi. Mất mạng → tự nối lại, nối lại xong tải lại dữ liệu.
 
 ## Chia trang
 
@@ -97,7 +105,8 @@ Trình duyệt → Vercel (Next.js, chuyển tiếp /api/*) → Cloudflare → b
 ```
 
 - **Vercel** build thư mục `frontend`, biến `BACKEND_URL` (link Render) + `SITE_URL` (link web thật, cho sitemap / ảnh chia sẻ).
-- **Render** build thư mục `backend` (`npm install --include=dev && npm run build`, chạy `npm start`), biến môi trường thay cho `.env`: `DATABASE_URL` (Neon, đường dẫn **trực tiếp** — bỏ `-pooler`), `DATABASE_SSL=true`, `NODE_ENV=production`, `JWT_SECRET`, `CLIENT_URL`, `TRUST_PROXY=4`, `DEMO_EMAILS`, mã Cloudinary.
+- **Render** build thư mục `backend` (`npm install --include=dev && npm run build`, chạy `npm start`), biến môi trường thay cho `.env`: `DATABASE_URL` (Neon, đường dẫn **trực tiếp** — bỏ `-pooler`), `DATABASE_SSL=true`, `NODE_ENV=production`, `JWT_SECRET`, `CLIENT_URL` (cũng là nguồn được phép mở Socket.IO), `TRUST_PROXY=4`, `DEMO_EMAILS`, mã Cloudinary.
+- **Vercel** thêm `NEXT_PUBLIC_SOCKET_URL` = link Render (biến `NEXT_PUBLIC_` gắn lúc build → đổi xong phải deploy lại).
 - **IP thật của khách:** đi qua 4 trạm → `TRUST_PROXY=4` (đo bằng `DEBUG_IP=true` ở `/api/health`). Gọi qua Vercel thì IP giả bị xoá; gọi thẳng link Render vẫn có thể giả IP.
 - **Tài khoản demo** (`DEMO_EMAILS`): mật khẩu công khai trong README, bị khoá đổi mật khẩu / hồ sơ / xoá; gõ sai mật khẩu không khoá theo email.
 - Push lên GitHub → Vercel + Render tự build lại. Thêm cột / bảng mới → chạy `db:setup` vào Neon (schema viết `IF NOT EXISTS`, không mất dữ liệu).

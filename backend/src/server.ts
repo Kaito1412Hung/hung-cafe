@@ -1,6 +1,7 @@
 import { app } from "./app";
 import { cloudinaryEnabled, env } from "./config/env";
 import { pool } from "./db/pool";
+import { initRealtime } from "./realtime/socket";
 import { expireUnpaidOrders } from "./modules/orders/orders.service";
 
 async function main() {
@@ -13,10 +14,13 @@ async function main() {
     process.exit(1);
   }
 
-  app.listen(env.PORT, () => {
+  const server = app.listen(env.PORT, () => {
     console.log(`🚀 API đang chạy tại http://localhost:${env.PORT}`);
     console.log(cloudinaryEnabled ? "🖼️  Ảnh món lưu trên Cloudinary" : "🖼️  Ảnh món lưu trong thư mục uploads/ (chưa điền mã Cloudinary)");
   });
+  // Realtime (Socket.IO) chạy chung cổng với API
+  initRealtime(server);
+  console.log("⚡ Realtime (Socket.IO) đã bật");
 
   // Mỗi phút: huỷ đơn VNPay quá hạn chưa thanh toán (trả kho + lượt mã giảm giá)
   const expire = () =>

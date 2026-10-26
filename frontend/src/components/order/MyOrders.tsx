@@ -8,6 +8,7 @@ import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { EmptyCart } from "@/components/cart/EmptyCart";
 import { useAuth } from "@/context/AuthContext";
+import { useSocketEvent, useSocketReconnect } from "@/context/SocketContext";
 import { useCart } from "@/context/CartContext";
 import { useShopSettings } from "@/context/ShopSettingsContext";
 import { CUSTOMER_CANCEL_REASONS, formatDateTime, formatOrderCode } from "@/lib/orders";
@@ -120,6 +121,26 @@ export function MyOrders() {
       cancelled = true;
     };
   }, [user, toast]);
+
+  // Realtime: quán đổi trạng thái / thanh toán xong / tự huỷ đơn quá hạn → lấy lại đúng đơn đó, thanh tiến trình tự nhảy bước
+  useSocketEvent("order:updated", (e) => {
+    if (!orders?.some((o) => o.id === e.id)) return;
+    orderService
+      .getById(e.id)
+      .then((fresh) => setOrders((prev) => prev?.map((o) => (o.id === fresh.id ? fresh : o)) ?? null))
+      .catch(() => {});
+  });
+  // Nối lại sau khi mất mạng → tải lại các đơn đang hiển thị (lỡ có thay đổi lúc mất kết nối)
+  useSocketReconnect(() => {
+    if (!orders?.length) return;
+    orderService
+      .getMine(Math.max(loaded, PAGE_SIZE), 0)
+      .then((res) => {
+        setOrders((prev) => mergeOrders(res.data, (prev ?? []).filter((o) => !res.data.some((r) => r.id === o.id))));
+        setTotal(res.total);
+      })
+      .catch(() => {});
+  });
 
   /** Tải thêm PAGE_SIZE đơn cũ hơn */
   const loadMore = async () => {

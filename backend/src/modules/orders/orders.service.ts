@@ -1,5 +1,7 @@
 import type { PoolClient } from "pg";
+import { discardAfterCommit, flushAfterCommit } from "../../db/afterCommit";
 import { pool } from "../../db/pool";
+import { emitOrderUpdated, emitToAdmins } from "../../realtime/socket";
 import { calcShippingFee, getOpenStatus, getShopSettings, isWithinOpeningHours } from "../settings/settings.service";
 import type { ShopSettings } from "../settings/settings.schema";
 import { AppError } from "../../utils/AppError";
@@ -44,11 +46,13 @@ async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promi
     await client.query("BEGIN");
     const result = await fn(client);
     await client.query("COMMIT");
+    flushAfterCommit(client); // lưu xong rồi mới gửi tin realtime
     return result;
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;
   } finally {
+    discardAfterCommit(client);
     client.release();
   }
 }
@@ -273,7 +277,10 @@ export async function checkout(userId: number, input: CheckoutInput): Promise<Or
   });
 
   cleanupNotifications().catch(() => {});
-  return findById(orderId);
+  const order = await findById(orderId);
+  // Đơn tiền mặt: admin thấy ngay. Đơn VNPay: báo khi khách trả tiền xong (payments.service)
+  if (!isVnpay) emitToAdmins("order:new", { id: order.id });
+  return order;
 }
 
 /** Đơn của 1 khách, mới nhất trước, theo từng trang (nút "Xem thêm") */
@@ -450,7 +457,9 @@ export async function changeStatus(
       );
     }
   });
-  return findById(id);
+  const order = await findById(id);
+  emitOrderUpdated(order);
+  return order;
 }
 
 /** Khách tự huỷ đơn của mình — chỉ khi đơn còn "Chờ xác nhận" */
@@ -533,7 +542,9 @@ export async function markRefunded(id: number): Promise<Order> {
     [id],
   );
   if (!rowCount) throw new AppError(400, "Đơn này không ở trạng thái cần hoàn tiền");
-  return findById(id);
+  const order = await findById(id);
+  emitOrderUpdated(order);
+  return order;
 }
 
 /** Huỷ các đơn VNPay quá hạn mà chưa thanh toán (trả kho + lượt mã giảm giá). Trả về số đơn đã huỷ */
