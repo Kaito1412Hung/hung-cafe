@@ -133,7 +133,8 @@ describe("Bước 2: Google đưa khách quay về", () => {
   });
 
   test("tài khoản demo dùng chung KHÔNG đăng nhập bằng Google được", async () => {
-    await browser().post("/auth/register", { name: "Demo", email: "demo@test.local", password: "matkhau123" });
+    // Cùng mật khẩu với tai-khoan.test.ts: file nào chạy trước tạo tài khoản thì file kia vẫn đăng nhập được
+    await browser().post("/auth/register", { name: "Demo", email: "demo@test.local", password: "demo123456" });
     const g = await googleLogin({ email: "demo@test.local" });
     expect(g.callback.headers.location).toBe("/login?google_error=demo");
   });
