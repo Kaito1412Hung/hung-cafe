@@ -45,13 +45,16 @@ export const avatarSchema = z.object({
 
 export const changePasswordSchema = z
   .object({
-    currentPassword: z.string().min(1, "Vui lòng nhập mật khẩu hiện tại"),
+    // Để trống được khi tài khoản Google chưa có mật khẩu (tạo mật khẩu lần đầu) — service kiểm tra
+    currentPassword: z.string().default(""),
     newPassword: z.string().min(6, "Mật khẩu mới cần ít nhất 6 ký tự").max(100),
   })
   .refine((v) => v.currentPassword !== v.newPassword, { message: "Mật khẩu mới phải khác mật khẩu cũ", path: ["newPassword"] });
 
+/** Có mật khẩu → nhập mật khẩu; tài khoản Google chưa có mật khẩu → gõ lại email (service kiểm tra) */
 export const deleteAccountSchema = z.object({
-  password: z.string().min(1, "Vui lòng nhập mật khẩu để xác nhận"),
+  password: z.string().default(""),
+  confirmEmail: z.string().trim().toLowerCase().default(""),
 });
 
 export const forgotPasswordSchema = z.object({

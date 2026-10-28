@@ -18,12 +18,18 @@ export const authRouter = Router();
 // Chống tạo tài khoản ảo hàng loạt / spam yêu cầu quên mật khẩu (tính theo IP)
 const registerLimit = rateLimit({ windowMs: 60 * 60 * 1000, max: 5, message: "Thiết bị này đã tạo quá nhiều tài khoản." });
 const forgotLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: "Bạn đã gửi quá nhiều yêu cầu." });
+const googleLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, message: "Bạn đã thử đăng nhập Google quá nhiều lần." });
 
 authRouter.post("/register", registerLimit, validateBody(registerSchema), controller.register);
 authRouter.post("/login", validateBody(loginSchema), controller.login);
 authRouter.post("/logout", controller.logout);
 authRouter.post("/logout-all", requireAuth, controller.logoutAll);
 authRouter.post("/forgot-password", forgotLimit, validateBody(forgotPasswordSchema), controller.forgotPassword);
+
+// Đăng nhập bằng Google: trình duyệt mở thẳng link này (không gọi bằng fetch), Google đưa về /google/callback
+authRouter.get("/options", controller.options);
+authRouter.get("/google", googleLimit, controller.googleStart);
+authRouter.get("/google/callback", googleLimit, controller.googleCallback);
 
 // Hồ sơ của chính mình
 // Chưa đăng nhập vẫn trả 200 + { user: null } (thay vì 401) → Console trình duyệt không hiện dòng đỏ mỗi lần mở web

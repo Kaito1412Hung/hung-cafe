@@ -5,6 +5,7 @@ import { AppError } from "../../utils/AppError";
 import type { LoginInput, RegisterInput, Role, UpdateProfileInput } from "./auth.schema";
 import { notifyAdmins } from "../notifications/notifications.service";
 import { loginGuard } from "../../middlewares/rateLimit";
+import { fetchGoogleAvatar, GoogleLoginError, type GoogleProfile } from "./google";
 
 export interface PublicUser {
   id: number;
@@ -19,6 +20,10 @@ export interface PublicUser {
   /** "YYYY-MM-DD" hoặc null */
   birthday: string | null;
   gender: "" | "male" | "female" | "other";
+  /** false = tài khoản tạo bằng Google, chưa đặt mật khẩu */
+  hasPassword: boolean;
+  /** Đã nối với tài khoản Google */
+  googleLinked: boolean;
   createdAt: Date;
 }
 
@@ -30,7 +35,8 @@ export interface AuthResult {
 
 // Không bao giờ trả password_hash ra ngoài
 const PUBLIC_COLUMNS = `id, name, nickname, email, role, avatar, phone, address,
-  to_char(birthday, 'YYYY-MM-DD') AS birthday, gender, created_at AS "createdAt"`;
+  to_char(birthday, 'YYYY-MM-DD') AS birthday, gender,
+  (password_hash IS NOT NULL) AS "hasPassword", (google_id IS NOT NULL) AS "googleLinked", created_at AS "createdAt"`;
 
 // Field (camelCase) → cột DB được phép cập nhật qua "sửa hồ sơ"
 const PROFILE_COLUMNS: Record<keyof UpdateProfileInput, string> = {
@@ -54,10 +60,14 @@ async function assertNotDemo(id: number) {
   }
 }
 
-async function getPasswordHash(id: number) {
-  const { rows } = await pool.query<{ passwordHash: string }>(`SELECT password_hash AS "passwordHash" FROM users WHERE id = $1`, [id]);
+/** Email + mật khẩu (đã băm) của tài khoản. passwordHash null = tài khoản Google chưa đặt mật khẩu */
+async function getCredentials(id: number) {
+  const { rows } = await pool.query<{ email: string; passwordHash: string | null }>(
+    `SELECT email, password_hash AS "passwordHash" FROM users WHERE id = $1`,
+    [id],
+  );
   if (!rows[0]) throw new AppError(404, "Tài khoản không tồn tại");
-  return rows[0].passwordHash;
+  return rows[0];
 }
 
 export async function register(input: RegisterInput): Promise<AuthResult> {
@@ -85,14 +95,14 @@ export async function login(input: LoginInput, ip: string): Promise<AuthResult> 
   const demo = isDemoEmail(input.email);
   loginGuard.check(input.email, ip, { skipEmail: demo });
 
-  const { rows } = await pool.query<PublicUser & { passwordHash: string; tokenVersion: number }>(
+  const { rows } = await pool.query<PublicUser & { passwordHash: string | null; tokenVersion: number }>(
     `SELECT ${PUBLIC_COLUMNS}, password_hash AS "passwordHash", token_version AS "tokenVersion" FROM users WHERE email = $1`,
     [input.email],
   );
   const row = rows[0];
 
-  // Báo chung một lỗi để không lộ email nào đã tồn tại
-  const valid = row && (await bcrypt.compare(input.password, row.passwordHash));
+  // Báo chung một lỗi để không lộ email nào đã tồn tại (kể cả tài khoản Google chưa có mật khẩu)
+  const valid = row?.passwordHash && (await bcrypt.compare(input.password, row.passwordHash));
   if (!valid) {
     const left = loginGuard.fail(input.email, ip, { skipEmail: demo });
     const warning = left <= 0 ? " Bạn đã hết lượt thử, vui lòng đợi 15 phút." : left <= 2 ? ` Bạn còn ${left} lần thử.` : "";
@@ -102,6 +112,53 @@ export async function login(input: LoginInput, ip: string): Promise<AuthResult> 
 
   const { passwordHash: _hash, tokenVersion, ...user } = row;
   return { user, tokenVersion };
+}
+
+/**
+ * Đăng nhập bằng Google: tìm theo google_id → chưa có thì nối vào tài khoản trùng email → không có nữa thì tạo khách mới.
+ * Admin và tài khoản demo chỉ đăng nhập bằng mật khẩu: email của chúng dùng tên miền mình không sở hữu,
+ * ai mua được tên miền đó là tạo được tài khoản Google cùng email → chiếm quyền.
+ */
+export async function loginWithGoogle(profile: GoogleProfile): Promise<AuthResult> {
+  // Chỉ tin email Google đã xác minh chủ hộp thư
+  if (!profile.emailVerified) throw new GoogleLoginError("unverified");
+  const email = profile.email.trim().toLowerCase();
+
+  type Row = PublicUser & { googleId: string | null; tokenVersion: number };
+  const select = `SELECT ${PUBLIC_COLUMNS}, google_id AS "googleId", token_version AS "tokenVersion" FROM users`;
+  const byGoogle = await pool.query<Row>(`${select} WHERE google_id = $1`, [profile.sub]);
+  const row = byGoogle.rows[0] ?? (await pool.query<Row>(`${select} WHERE email = $1`, [email])).rows[0];
+
+  if (row) {
+    if (row.role === "admin") throw new GoogleLoginError("admin");
+    if (isDemoEmail(row.email)) throw new GoogleLoginError("demo");
+    // Email này đã nối với một tài khoản Google khác → không tự đổi
+    if (row.googleId && row.googleId !== profile.sub) throw new GoogleLoginError("failed");
+    const { googleId, tokenVersion, ...user } = row;
+    if (!googleId) {
+      await pool.query("UPDATE users SET google_id = $1 WHERE id = $2", [profile.sub, row.id]);
+      user.googleLinked = true;
+    }
+    return { user, tokenVersion };
+  }
+
+  // Khách mới: lấy tên + ảnh đại diện từ Google, chưa có mật khẩu
+  const googleName = profile.name.trim().slice(0, 100);
+  const name = googleName.length >= 2 ? googleName : email.split("@")[0].slice(0, 100);
+  const avatar = await fetchGoogleAvatar(profile.picture);
+  const { rows } = await pool.query<PublicUser>(
+    `INSERT INTO users (name, email, password_hash, role, google_id, avatar)
+     VALUES ($1, $2, NULL, 'customer', $3, $4)
+     RETURNING ${PUBLIC_COLUMNS}`,
+    [name, email, profile.sub, avatar],
+  );
+  await notifyAdmins({
+    type: "new_customer",
+    title: "Khách hàng mới đăng ký",
+    message: `${name} (${email}) — đăng ký bằng Google`,
+    link: "/admin/customers",
+  });
+  return { user: rows[0], tokenVersion: 0 };
 }
 
 /** token_version hiện tại (để ký vé realtime cùng "phiên" với cookie đăng nhập) */
@@ -152,14 +209,21 @@ async function bumpTokenVersion(id: number) {
   return rows[0].tokenVersion;
 }
 
-/** Đổi mật khẩu xong thì các thiết bị khác bị đăng xuất; thiết bị hiện tại nhận token mới */
+/**
+ * Đổi mật khẩu xong thì các thiết bị khác bị đăng xuất; thiết bị hiện tại nhận token mới.
+ * Tài khoản Google chưa có mật khẩu → tạo mật khẩu, không cần mật khẩu hiện tại.
+ */
 export async function changePassword(id: number, currentPassword: string, newPassword: string) {
   await assertNotDemo(id);
-  const valid = await bcrypt.compare(currentPassword, await getPasswordHash(id));
-  if (!valid) throw new AppError(400, "Mật khẩu hiện tại không đúng", { currentPassword: "Mật khẩu hiện tại không đúng" });
+  const { passwordHash } = await getCredentials(id);
+  if (passwordHash) {
+    if (!currentPassword) throw new AppError(400, "Vui lòng nhập mật khẩu hiện tại", { currentPassword: "Vui lòng nhập mật khẩu hiện tại" });
+    const valid = await bcrypt.compare(currentPassword, passwordHash);
+    if (!valid) throw new AppError(400, "Mật khẩu hiện tại không đúng", { currentPassword: "Mật khẩu hiện tại không đúng" });
+  }
 
   await pool.query("UPDATE users SET password_hash = $1 WHERE id = $2", [await bcrypt.hash(newPassword, 10), id]);
-  return bumpTokenVersion(id);
+  return { tokenVersion: await bumpTokenVersion(id), created: !passwordHash };
 }
 
 export async function logoutAllDevices(id: number) {
@@ -167,12 +231,21 @@ export async function logoutAllDevices(id: number) {
   await bumpTokenVersion(id);
 }
 
-/** Khách tự xoá tài khoản (phải nhập đúng mật khẩu). Đơn hàng cũ vẫn giữ (user_id → NULL). */
-export async function deleteOwnAccount(id: number, role: Role, password: string) {
+/**
+ * Khách tự xoá tài khoản: nhập đúng mật khẩu, hoặc gõ lại email nếu tài khoản Google chưa có mật khẩu.
+ * Đơn hàng cũ vẫn giữ (user_id → NULL).
+ */
+export async function deleteOwnAccount(id: number, role: Role, confirm: { password: string; confirmEmail: string }) {
   if (role === "admin") throw new AppError(400, "Tài khoản quản trị không thể tự xoá. Hãy nhờ admin khác hạ quyền trước.");
   await assertNotDemo(id);
-  const valid = await bcrypt.compare(password, await getPasswordHash(id));
-  if (!valid) throw new AppError(400, "Mật khẩu không đúng", { password: "Mật khẩu không đúng" });
+  const { email, passwordHash } = await getCredentials(id);
+  if (passwordHash) {
+    if (!confirm.password) throw new AppError(400, "Vui lòng nhập mật khẩu để xác nhận", { password: "Vui lòng nhập mật khẩu để xác nhận" });
+    const valid = await bcrypt.compare(confirm.password, passwordHash);
+    if (!valid) throw new AppError(400, "Mật khẩu không đúng", { password: "Mật khẩu không đúng" });
+  } else if (confirm.confirmEmail !== email) {
+    throw new AppError(400, "Email không khớp với tài khoản", { confirmEmail: "Email không khớp với tài khoản" });
+  }
   await pool.query("DELETE FROM users WHERE id = $1", [id]);
 }
 

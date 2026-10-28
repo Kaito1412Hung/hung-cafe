@@ -7,6 +7,7 @@ import { CircleAlert, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/FormField";
 import { useToast } from "@/components/ui/Toast";
+import { GOOGLE_ERRORS, GoogleButton } from "@/components/auth/GoogleButton";
 import { useAuth } from "@/context/AuthContext";
 import { ApiError } from "@/lib/api";
 import { displayName } from "@/lib/user";
@@ -40,6 +41,9 @@ export function AuthForm({ mode }: { mode: Mode }) {
   const [submitting, setSubmitting] = useState(false);
 
   const isLogin = mode === "login";
+  // Đăng nhập Google thất bại → backend đưa về /login?google_error=…
+  const googleError = GOOGLE_ERRORS[searchParams.get("google_error") ?? ""];
+  const shownError = formError ?? googleError;
 
   // Chỉ cho phép chuyển tới đường dẫn nội bộ (chống open redirect)
   const redirectAfterAuth = (user: User) => {
@@ -75,10 +79,10 @@ export function AuthForm({ mode }: { mode: Mode }) {
         {isLogin ? "Chào mừng bạn quay lại Hưng Café." : "Đăng ký để nhận ưu đãi dành riêng cho thành viên."}
       </p>
 
-      {formError && (
+      {shownError && (
         <div className="mt-6 flex items-start gap-2.5 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-600/15">
           <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-          {formError}
+          {shownError}
         </div>
       )}
 
@@ -134,6 +138,8 @@ export function AuthForm({ mode }: { mode: Mode }) {
           </p>
         )}
       </form>
+
+      <GoogleButton next={searchParams.get("next")} />
 
       <p className="mt-8 text-center text-sm text-coffee-600">
         {isLogin ? "Chưa có tài khoản? " : "Đã có tài khoản? "}

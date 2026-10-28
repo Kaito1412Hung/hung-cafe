@@ -26,6 +26,14 @@ schema      zod: kiểm tra dữ liệu gửi lên (sai → 400 kèm lỗi từn
 2. Mỗi yêu cầu sau, `requireAuth` đọc cookie, kiểm tra JWT rồi **đọc lại role + `token_version` từ DB** → đổi quyền, xoá tài khoản, đổi mật khẩu có hiệu lực ngay.
 3. Mở web khi chưa đăng nhập, frontend hỏi `GET /api/auth/me` → server trả `200` + `{ user: null }` (không trả 401 để Console trình duyệt không hiện dòng đỏ). Các API cần đăng nhập khác vẫn trả `401` như cũ.
 
+### Đăng nhập bằng Google (OAuth)
+
+1. Nút **Tiếp tục với Google** là link thường tới `/api/auth/google?next=…` (Next.js chuyển tiếp sang backend). Backend tạo `state` ngẫu nhiên, cất vào cookie httpOnly `g_oauth` (10 phút) rồi chuyển sang `accounts.google.com`.
+2. Khách chọn tài khoản → Google đưa về `https://<web>/api/auth/google/callback?code=…&state=…`. Link này đi qua **tên miền frontend** (`CLIENT_URL`) nên cookie đăng nhập gắn đúng tên miền web, giống đăng nhập bằng mật khẩu.
+3. Backend so `state` với cookie (chống CSRF) → đổi `code` + Client Secret lấy **id_token** → kiểm tra chữ ký Google, hạn, đúng Client ID (`google-auth-library`).
+4. `loginWithGoogle` (`auth.service.ts`): tìm theo `google_id` → chưa có thì nối vào tài khoản trùng email (chỉ khi `email_verified`) → không có thì tạo khách mới (tên + ảnh từ Google, `password_hash = NULL`). Admin / tài khoản demo bị từ chối.
+5. Đặt cookie `token` như đăng nhập thường → chuyển về trang `next`. Lỗi → `/login?google_error=…`, trang đăng nhập hiện câu báo tương ứng.
+
 ## Thêm vào giỏ → đặt hàng
 
 1. Khách chọn món + lựa chọn → `POST /api/cart/items`. Backend dùng `cart/options.ts` để **chuẩn hoá** lựa chọn theo cấu hình món (VD món chỉ uống nóng thì bỏ lượng đá, topping sắp theo id). Cùng món + cùng lựa chọn → cộng dồn số lượng; khác → dòng mới.

@@ -121,7 +121,7 @@ function op(path: string, input: OperationInput) {
   const responses: Record<string, unknown> = {
     [code]: input.file
       ? { description, content: { [input.file]: { schema: { type: "string", format: "binary" } } } }
-      : code === 204
+      : code === 204 || (code >= 300 && code < 400)
         ? { description }
         : { description, content: jsonContent({ $ref: "#/components/schemas/Data" }) },
   };
@@ -192,6 +192,40 @@ const paths = {
       limited: "tối đa 5 lần / 15 phút",
     }),
   },
+  "/api/auth/options": {
+    get: op("/api/auth/options", {
+      tag: "Tài khoản",
+      summary: "Các cách đăng nhập đang bật",
+      description: "`{ data: { google: true | false } }`: `false` khi backend chưa có mã OAuth Google → frontend ẩn nút \"Tiếp tục với Google\".",
+    }),
+  },
+  "/api/auth/google": {
+    get: op("/api/auth/google", {
+      tag: "Tài khoản",
+      summary: "Đăng nhập bằng Google — bước 1: chuyển sang Google",
+      description:
+        "Mở link này **trên trình duyệt** (không gọi bằng fetch / Swagger). Backend tạo mã `state` ngẫu nhiên, cất vào cookie tạm `g_oauth` (10 phút) " +
+        "rồi chuyển (302) sang trang chọn tài khoản của Google. Chỉ xin `openid email profile`.",
+      query: [q("next", "Trang quay về sau khi đăng nhập, VD `/cart` (chỉ nhận đường dẫn trong web)")],
+      success: [302, "Chuyển sang accounts.google.com (chưa bật Google → `/login?google_error=off`)"],
+      limited: "tối đa 30 lần / 15 phút",
+    }),
+  },
+  "/api/auth/google/callback": {
+    get: op("/api/auth/google/callback", {
+      tag: "Tài khoản",
+      summary: "Đăng nhập bằng Google — bước 2: Google đưa khách quay về",
+      description:
+        "Google mở link này kèm `code` + `state`. Backend so `state` với cookie `g_oauth` (chống CSRF), đổi `code` + Client Secret lấy **id_token**, " +
+        "kiểm tra chữ ký Google / hạn / đúng Client ID → tìm theo `google_id`, chưa có thì nối vào tài khoản trùng email (email đã xác minh), không có nữa thì tạo khách mới " +
+        "→ gửi cookie `token` và chuyển về trang `next`.\n\n" +
+        "Lỗi → chuyển về `/login?google_error=…`: `cancelled` (khách bấm Huỷ), `state` (hết hạn / giả mạo), `unverified` (email chưa xác minh), " +
+        "`admin` / `demo` (tài khoản quản trị và tài khoản demo chỉ đăng nhập bằng mật khẩu), `failed`, `off`.",
+      query: [q("code", "Mã dùng 1 lần do Google cấp"), q("state", "Mã chống giả mạo, phải khớp cookie g_oauth"), q("error", "Google gửi khi khách bấm Huỷ")],
+      success: [302, "Chuyển về trang `next` (đã đăng nhập) hoặc `/login?google_error=…`"],
+      limited: "tối đa 30 lần / 15 phút",
+    }),
+  },
   "/api/auth/socket-token": {
     get: op("/api/auth/socket-token", {
       tag: "Tài khoản",
@@ -206,13 +240,13 @@ const paths = {
   "/api/auth/me": {
     get: op("/api/auth/me", { tag: "Tài khoản", summary: "Thông tin tài khoản đang đăng nhập", description: "Chưa đăng nhập vẫn trả 200 với `{ user: null }`.", access: "optional" }),
     patch: op("/api/auth/me", { tag: "Tài khoản", summary: "Sửa hồ sơ", description: "Chỉ gửi những ô muốn đổi.", access: "user", body: auth.updateProfileSchema, errors: { 403: "Tài khoản demo dùng chung không được làm thao tác này" }, }),
-    delete: op("/api/auth/me", { tag: "Tài khoản", summary: "Xoá tài khoản của mình", description: "Phải nhập lại mật khẩu để xác nhận.", access: "user", body: auth.deleteAccountSchema, errors: { 400: "Sai mật khẩu / tài khoản admin không tự xoá được", 403: "Tài khoản demo dùng chung không được xoá" } }),
+    delete: op("/api/auth/me", { tag: "Tài khoản", summary: "Xoá tài khoản của mình", description: "Phải nhập lại mật khẩu (`password`) để xác nhận. Tài khoản Google chưa có mật khẩu: gửi `confirmEmail` (gõ lại email).", access: "user", body: auth.deleteAccountSchema, errors: { 400: "Sai mật khẩu / sai email xác nhận / tài khoản admin không tự xoá được", 403: "Tài khoản demo dùng chung không được xoá" } }),
   },
   "/api/auth/me/avatar": {
     put: op("/api/auth/me/avatar", { tag: "Tài khoản", summary: "Đổi ảnh đại diện", description: "Ảnh dạng data URL (frontend đã thu nhỏ trước khi gửi).", access: "user", body: auth.avatarSchema, errors: { 403: "Tài khoản demo dùng chung không được làm thao tác này" }, }),
   },
   "/api/auth/password": {
-    patch: op("/api/auth/password", { tag: "Tài khoản", summary: "Đổi mật khẩu", access: "user", body: auth.changePasswordSchema, errors: { 400: "Mật khẩu hiện tại không đúng / dữ liệu không hợp lệ", 403: "Tài khoản demo dùng chung không đổi được mật khẩu" } }),
+    patch: op("/api/auth/password", { tag: "Tài khoản", summary: "Đổi mật khẩu (hoặc tạo mật khẩu cho tài khoản Google)", description: "Tài khoản tạo bằng Google chưa có mật khẩu: bỏ trống `currentPassword` để tạo mật khẩu lần đầu.", access: "user", body: auth.changePasswordSchema, errors: { 400: "Mật khẩu hiện tại không đúng / dữ liệu không hợp lệ", 403: "Tài khoản demo dùng chung không đổi được mật khẩu" } }),
   },
 
   /* ----- Thực đơn ----- */

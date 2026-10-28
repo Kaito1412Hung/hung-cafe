@@ -17,7 +17,7 @@ toppings · coupons · settings · newsletter_subscribers   (bảng đứng riê
 
 | Bảng | Lưu gì | Cột đáng chú ý |
 | --- | --- | --- |
-| `users` | Tài khoản admin + khách | `role` (`admin` / `customer`), `password_hash` (bcrypt), `token_version` (tăng lên → mọi phiên đăng nhập cũ hết hạn), hồ sơ: `nickname, avatar, phone, address, birthday, gender` |
+| `users` | Tài khoản admin + khách | `role` (`admin` / `customer`), `password_hash` (bcrypt; `NULL` = tài khoản tạo bằng Google chưa đặt mật khẩu), `google_id` (mã tài khoản Google đã nối, duy nhất), `token_version` (tăng lên → mọi phiên đăng nhập cũ hết hạn), hồ sơ: `nickname, avatar, phone, address, birthday, gender` |
 | `categories` | Danh mục món | `slug` (VD `coffee`, `milktea`), `sort_order` |
 | `products` | Món | `slug` (đường dẫn đẹp), `price`, `stock`, `is_available`, `is_best_seller`, lựa chọn của món: `has_size`, `has_sugar`, `serve`, `allow_toppings` |
 | `toppings` | Topping (trân châu, thạch...) | `price`, `is_available`, `sort_order` |

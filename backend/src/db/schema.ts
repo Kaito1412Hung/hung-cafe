@@ -19,6 +19,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS gender   VARCHAR(10)  NOT NULL DEFAUL
   CHECK (gender IN ('', 'male', 'female', 'other'));
 -- Tăng số này để vô hiệu hoá mọi token cũ ("đăng xuất khỏi tất cả thiết bị")
 ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0;
+-- Đăng nhập bằng Google: mã tài khoản Google ("sub") đã nối với tài khoản này (NULL = chưa nối)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE;
+-- Tài khoản tạo bằng Google chưa có mật khẩu (NULL) → tự tạo sau trong trang Tài khoản
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
 
 -- Danh mục món. "slug" là mã cố định (dùng trong URL / sản phẩm), "name" là tên hiển thị đổi được
 CREATE TABLE IF NOT EXISTS categories (

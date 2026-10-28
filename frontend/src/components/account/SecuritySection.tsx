@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, LogOut, TriangleAlert } from "lucide-react";
+import { CircleCheck, Eye, EyeOff, LogOut, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/FormField";
 import { Modal } from "@/components/ui/Modal";
@@ -44,9 +44,12 @@ function PasswordInput({ id, value, onChange, invalid, autoComplete }: { id: str
   );
 }
 
-/* ================= Đổi mật khẩu ================= */
+/* ================= Đổi mật khẩu (tài khoản Google chưa có mật khẩu: tạo mật khẩu) ================= */
 export function ChangePasswordForm() {
   const toast = useToast();
+  const { user, updateUser } = useAuth();
+  // Tài khoản tạo bằng Google chưa có mật khẩu → không hỏi mật khẩu hiện tại
+  const creating = user?.hasPassword === false;
   const [pw, setPw] = useState({ currentPassword: "", newPassword: "", confirm: "" });
   const [errors, setErrors] = useState<Errors>({});
   const [saving, setSaving] = useState(false);
@@ -60,7 +63,7 @@ export function ChangePasswordForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     const found: Errors = {};
-    if (!pw.currentPassword) found.currentPassword = "Vui lòng nhập mật khẩu hiện tại";
+    if (!creating && !pw.currentPassword) found.currentPassword = "Vui lòng nhập mật khẩu hiện tại";
     if (pw.newPassword.length < 6) found.newPassword = "Mật khẩu mới cần ít nhất 6 ký tự";
     else if (pw.newPassword === pw.currentPassword) found.newPassword = "Mật khẩu mới phải khác mật khẩu cũ";
     if (pw.confirm !== pw.newPassword) found.confirm = "Mật khẩu nhập lại không khớp";
@@ -69,9 +72,10 @@ export function ChangePasswordForm() {
 
     setSaving(true);
     try {
-      await profileService.changePassword(pw.currentPassword, pw.newPassword);
+      const message = await profileService.changePassword(creating ? "" : pw.currentPassword, pw.newPassword);
       setPw({ currentPassword: "", newPassword: "", confirm: "" });
-      toast("Đã đổi mật khẩu. Các thiết bị khác đã được đăng xuất.");
+      if (creating && user) updateUser({ ...user, hasPassword: true });
+      toast(message);
     } catch (err) {
       if (err instanceof ApiError && err.errors) setErrors(err.errors);
       toast((err as Error).message, "error");
@@ -83,18 +87,32 @@ export function ChangePasswordForm() {
   return (
     <form onSubmit={handleSubmit} noValidate>
       <SettingsCard
-        title="Đổi mật khẩu"
-        description="Sau khi đổi, các thiết bị khác đang đăng nhập sẽ bị đăng xuất để bảo vệ tài khoản."
+        title={creating ? "Tạo mật khẩu" : "Đổi mật khẩu"}
+        description={
+          creating
+            ? "Tài khoản của bạn đang đăng nhập bằng Google. Tạo mật khẩu để đăng nhập được cả bằng email + mật khẩu."
+            : "Sau khi đổi, các thiết bị khác đang đăng nhập sẽ bị đăng xuất để bảo vệ tài khoản."
+        }
         footer={
           <Button type="submit" loading={saving}>
-            Đổi mật khẩu
+            {creating ? "Tạo mật khẩu" : "Đổi mật khẩu"}
           </Button>
         }
       >
         <div className="grid gap-4 @md:grid-cols-2">
-          <Field label="Mật khẩu hiện tại" htmlFor="currentPassword" error={errors.currentPassword} className="@md:col-span-2">
-            <PasswordInput id="currentPassword" autoComplete="current-password" value={pw.currentPassword} onChange={(v) => set("currentPassword", v)} invalid={!!errors.currentPassword} />
-          </Field>
+          {user?.googleLinked && (
+            <p className="flex items-start gap-2 rounded-xl bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-800 @md:col-span-2">
+              <CircleCheck className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                Đã liên kết Google — bạn đăng nhập được bằng nút <strong>Tiếp tục với Google</strong>.
+              </span>
+            </p>
+          )}
+          {!creating && (
+            <Field label="Mật khẩu hiện tại" htmlFor="currentPassword" error={errors.currentPassword} className="@md:col-span-2">
+              <PasswordInput id="currentPassword" autoComplete="current-password" value={pw.currentPassword} onChange={(v) => set("currentPassword", v)} invalid={!!errors.currentPassword} />
+            </Field>
+          )}
           <Field label="Mật khẩu mới" htmlFor="newPassword" error={errors.newPassword}>
             <PasswordInput id="newPassword" autoComplete="new-password" value={pw.newPassword} onChange={(v) => set("newPassword", v)} invalid={!!errors.newPassword} />
           </Field>
@@ -176,7 +194,9 @@ export function SessionsCard() {
 
 /* ================= Xoá tài khoản (chỉ khách hàng) ================= */
 export function DeleteAccountCard() {
-  const { clearSession } = useAuth();
+  const { user, clearSession } = useAuth();
+  // Tài khoản Google chưa có mật khẩu → xác nhận bằng cách gõ lại email
+  const byEmail = user?.hasPassword === false;
   const toast = useToast();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -192,10 +212,10 @@ export function DeleteAccountCard() {
 
   const handleDelete = async (e: FormEvent) => {
     e.preventDefault();
-    if (!password) return setError("Vui lòng nhập mật khẩu để xác nhận");
+    if (!password) return setError(byEmail ? "Vui lòng gõ lại email để xác nhận" : "Vui lòng nhập mật khẩu để xác nhận");
     setBusy(true);
     try {
-      await profileService.deleteAccount(password);
+      await profileService.deleteAccount(byEmail ? { confirmEmail: password } : { password });
       clearSession();
       toast("Tài khoản của bạn đã được xoá. Hẹn gặp lại!", "info");
       router.push("/");
@@ -243,9 +263,15 @@ export function DeleteAccountCard() {
             <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
             Bạn sẽ không thể đăng nhập lại bằng tài khoản này.
           </div>
-          <Field label="Nhập mật khẩu để xác nhận" htmlFor="deletePassword" error={error}>
-            <PasswordInput id="deletePassword" autoComplete="current-password" value={password} onChange={(v) => { setPassword(v); setError(undefined); }} invalid={!!error} />
-          </Field>
+          {byEmail ? (
+            <Field label={`Gõ lại email ${user?.email} để xác nhận`} htmlFor="deleteEmail" error={error}>
+              <Input id="deleteEmail" type="email" autoComplete="off" value={password} onChange={(e) => { setPassword(e.target.value); setError(undefined); }} invalid={!!error} />
+            </Field>
+          ) : (
+            <Field label="Nhập mật khẩu để xác nhận" htmlFor="deletePassword" error={error}>
+              <PasswordInput id="deletePassword" autoComplete="current-password" value={password} onChange={(v) => { setPassword(v); setError(undefined); }} invalid={!!error} />
+            </Field>
+          )}
         </form>
       </Modal>
     </section>

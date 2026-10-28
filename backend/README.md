@@ -68,10 +68,13 @@ npm run dev                 # http://localhost:4000
 | PATCH  | `/api/orders/:id/status`         | **Admin**    | Đổi trạng thái `{ status, reason }` — huỷ thì bắt buộc lý do (khách thấy) |
 | PATCH  | `/api/auth/me`                   | Đã đăng nhập | Sửa hồ sơ `{ name, nickname, phone, address, birthday, gender }` (gửi trường nào sửa trường đó) |
 | PUT    | `/api/auth/me/avatar`            | Đã đăng nhập | Ảnh đại diện `{ avatar }` (data URL ≤ 200KB, `""` = xoá) |
-| DELETE | `/api/auth/me`                   | Khách hàng   | Tự xoá tài khoản `{ password }`        |
+| DELETE | `/api/auth/me`                   | Khách hàng   | Tự xoá tài khoản `{ password }` (tài khoản Google chưa có mật khẩu: `{ confirmEmail }`) |
 | POST   | `/api/auth/logout-all`           | Đã đăng nhập | Đăng xuất khỏi tất cả thiết bị         |
 | POST   | `/api/auth/forgot-password`      | Ai cũng được | Báo quên mật khẩu `{ email }` → thông báo cho admin |
-| PATCH  | `/api/auth/password`             | Đã đăng nhập | Đổi mật khẩu (các thiết bị khác bị đăng xuất) |
+| PATCH  | `/api/auth/password`             | Đã đăng nhập | Đổi mật khẩu (các thiết bị khác bị đăng xuất); tài khoản Google chưa có mật khẩu: bỏ trống `currentPassword` để tạo |
+| GET    | `/api/auth/options`              | Ai cũng được | Cách đăng nhập đang bật `{ data: { google } }` (chưa điền mã Google → ẩn nút) |
+| GET    | `/api/auth/google?next=/cart`    | Ai cũng được | Mở trên trình duyệt → chuyển sang trang chọn tài khoản Google (kèm `state` trong cookie `g_oauth`) |
+| GET    | `/api/auth/google/callback`      | Google gọi   | Kiểm tra `state` → đổi `code` lấy id_token → tìm / nối / tạo tài khoản → cookie `token`. Lỗi → `/login?google_error=…` |
 | GET    | `/api/settings`                  | Ai cũng được | Thông tin quán, giờ mở cửa, mạng xã hội, phí giao + `openStatus` (đang mở / đóng) |
 | PUT    | `/api/settings`                  | **Admin**    | Cập nhật cài đặt cửa hàng              |
 | POST   | `/api/contact`                   | Ai cũng được | Gửi form liên hệ (tối đa 3 lần / 10 phút / email) → thông báo cho admin |
@@ -118,6 +121,7 @@ npm run test:watch  # tự chạy lại khi sửa code
 ```
 
 - `tests/unit/`: test hàm, không cần database (chữ ký VNPay / Cloudinary, tính tiền, giảm giá, kiểm tra dữ liệu zod, giờ mở cửa theo giờ VN)
+- `tests/api/dang-nhap-google.test.ts`: giả lập phần nói chuyện với Google (`vi.mock`), còn lại chạy thật (state, cookie, nối / tạo tài khoản, chặn admin / demo)
 - `tests/api/`: gọi API thật bằng Supertest trên database **riêng `hung_cafe_test`** (xoá + tạo lại mỗi lần chạy, chốt an toàn: tên phải kết thúc `_test`). Trên máy lấy server trong `DATABASE_URL`; trên GitHub Actions dùng `TEST_DATABASE_URL`
 - Cấu hình: `vitest.config.ts` (biến môi trường riêng cho test), `tests/global-setup.ts` (tạo database), `tests/helpers.ts` (trình duyệt giả giữ cookie, mỗi người 1 IP)
 - CI: `.github/workflows/ci.yml` chạy typecheck + test + build mỗi lần push
@@ -127,6 +131,7 @@ npm run test:watch  # tự chạy lại khi sửa code
 - **Chống dò mật khẩu:** sai 5 lần / 15 phút với 1 email → khoá đăng nhập email đó 15 phút; 1 IP sai quá 20 lần cũng bị khoá (`middlewares/rateLimit.ts`).
 - **Giới hạn tần suất (rate limit) theo IP:** đăng ký 5 lần/giờ, quên mật khẩu 5 lần/15 phút, liên hệ / nhận tin 10 lần/10 phút, thử mã giảm giá 20 lần/5 phút.
 - **helmet:** thêm các header bảo mật (chống nhúng iframe, chống đoán kiểu file, ẩn `X-Powered-By`).
+- **Đăng nhập Google** (`modules/auth/google.ts`): mã `state` ngẫu nhiên lưu cookie httpOnly 10 phút để chống CSRF; kiểm tra id_token (chữ ký Google, hạn, `aud` = Client ID); chỉ nối theo email khi `email_verified`; admin và tài khoản demo không đăng nhập Google được; `next` chỉ nhận đường dẫn trong web (chống chuyển hướng sang web lạ).
 - **Tài khoản demo dùng chung** (`DEMO_EMAILS`): không đổi được mật khẩu / hồ sơ / ảnh, không đăng xuất mọi thiết bị, không xoá được (403); gõ sai mật khẩu chỉ khoá theo IP, không khoá theo email.
 - **IP thật của khách:** backend đứng sau proxy (máy dev: Next.js; deploy: Vercel + Render) → biến `TRUST_PROXY` cho biết tin mấy trạm trong header `X-Forwarded-For`. Sai thì mọi khách bị tính chung 1 IP. Kiểm tra: mở `/api/health` xem `yourIp`.
 - Bộ đếm lưu trong bộ nhớ server (khởi động lại là reset). Chạy nhiều server thì nên chuyển sang Redis.

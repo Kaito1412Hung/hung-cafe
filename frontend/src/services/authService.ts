@@ -15,6 +15,11 @@ export const authService = {
     return res.user;
   },
 
+  /** Các cách đăng nhập đang bật (Google chỉ bật khi backend có mã OAuth) */
+  async options(): Promise<{ google: boolean }> {
+    return (await api<{ data: { google: boolean } }>("/auth/options")).data;
+  },
+
   async logout(): Promise<void> {
     await api("/auth/logout", { method: "POST" });
   },

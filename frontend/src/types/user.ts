@@ -16,6 +16,10 @@ export interface User {
   /** "YYYY-MM-DD" hoặc null */
   birthday: string | null;
   gender: Gender;
+  /** false = tài khoản tạo bằng Google, chưa đặt mật khẩu */
+  hasPassword: boolean;
+  /** Đã nối với tài khoản Google (đăng nhập được bằng nút "Tiếp tục với Google") */
+  googleLinked: boolean;
   createdAt: string;
 }
 

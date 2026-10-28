@@ -41,6 +41,9 @@ const testEnv: Record<string, string> = {
   CLOUDINARY_CLOUD_NAME: "",
   CLOUDINARY_API_KEY: "",
   CLOUDINARY_API_SECRET: "",
+  // Google bật bằng mã giả; test giả lập phần nói chuyện với Google (tests/api/dang-nhap-google.test.ts)
+  GOOGLE_CLIENT_ID: "test-client-id.apps.googleusercontent.com",
+  GOOGLE_CLIENT_SECRET: "ma-gia-chi-de-test",
 };
 Object.assign(process.env, testEnv);
 

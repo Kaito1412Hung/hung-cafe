@@ -51,6 +51,10 @@ const envSchema = z.object({
   CLOUDINARY_CLOUD_NAME: z.string().trim().default(""),
   CLOUDINARY_API_KEY: z.string().trim().default(""),
   CLOUDINARY_API_SECRET: z.string().trim().default(""),
+
+  // Đăng nhập bằng Google (để trống → ẩn nút "Tiếp tục với Google")
+  GOOGLE_CLIENT_ID: z.string().trim().default(""),
+  GOOGLE_CLIENT_SECRET: z.string().trim().default(""),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -69,3 +73,5 @@ export const isProduction = env.NODE_ENV === "production";
 export const vnpayEnabled = Boolean(env.VNP_TMN_CODE && env.VNP_HASH_SECRET);
 /** Đã điền đủ 3 mã Cloudinary trong .env chưa */
 export const cloudinaryEnabled = Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET);
+/** Đã điền mã OAuth Google trong .env chưa */
+export const googleEnabled = Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
